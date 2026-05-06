@@ -1,0 +1,20 @@
+llm:
+  provider: openai
+  model: gpt-4o-mini
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+vector_store:
+  provider: chroma
+  persist_directory: data/db/chroma
+retrieval:
+  strategy: hybrid
+  top_k: 5
+rerank:
+  provider: none
+  top_n: 5
+evaluation:
+  provider: custom
+observability:
+  level: INFO
+  traces_path: logs/traces.jsonl

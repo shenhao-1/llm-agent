@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pytest -q tests/unit/test_azure_vision_llm.py)"
+    ]
+  }
+}

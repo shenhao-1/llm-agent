@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "modular-rag-mcp-server"
+version = "0.1.0"
+description = "Modular, pluggable RAG MCP server"
+readme = "README.md"
+requires-python = ">=3.11"
+
+dependencies = [
+  "chromadb>=0.5,<1",
+  "langchain-text-splitters>=0.3,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+testpaths = ["tests"]
+markers = [
+  "unit: fast unit tests",
+  "integration: cross-module integration tests",
+  "e2e: end-to-end tests",
+]

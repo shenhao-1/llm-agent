@@ -1,0 +1,2 @@
+Rank candidate chunks by relevance to the query.
+Return only the ranked identifiers in descending order.
