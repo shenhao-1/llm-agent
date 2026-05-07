@@ -1981,20 +1981,20 @@ dashboard:
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
 | C1 | 定义核心数据类型/契约（Document/Chunk/ChunkRecord） | [x] | 2026-05-06 | Document、Chunk、ChunkRecord 与序列化/校验单测已完成 |
-| C2 | 文件完整性检查（SHA256） | [ ] | | |
-| C3 | Loader 抽象基类与 PDF Loader | [ ] | | |
-| C4 | Splitter 集成（调用 Libs） | [ ] | | |
-| C5 | Transform 基类 + ChunkRefiner | [ ] | | |
-| C6 | MetadataEnricher | [ ] | | |
-| C7 | ImageCaptioner | [ ] | | |
-| C8 | DenseEncoder | [ ] | | |
-| C9 | SparseEncoder | [ ] | | |
-| C10 | BatchProcessor | [ ] | | |
-| C11 | BM25Indexer（倒排索引+IDF计算） | [ ] | | |
-| C12 | VectorUpserter（幂等upsert） | [ ] | | |
-| C13 | ImageStorage（图片存储+SQLite索引） | [ ] | | |
-| C14 | Pipeline 编排（MVP 串起来） | [ ] | | |
-| C15 | 脚本入口 ingest.py | [ ] | | |
+| C2 | 文件完整性检查（SHA256） | [x] | 2026-05-06 | FileIntegrityChecker、SQLiteIntegrityChecker、SHA256、SQLite WAL 与并发写入单测已完成 |
+| C3 | Loader 抽象基类与 PDF Loader | [x] | 2026-05-06 | BaseLoader、PdfLoader、PDF 文本解析、图片提取/占位符与降级单测已完成 |
+| C4 | Splitter 集成（调用 Libs） | [x] | 2026-05-06 | DocumentChunker、稳定 Chunk ID、offset、metadata 继承、图片引用分发与契约单测已完成 |
+| C5 | Transform 基类 + ChunkRefiner | [x] | 2026-05-06 | BaseTransform、ChunkRefiner、规则清洗、可选 LLM 增强、降级机制、TraceContext 占位与单测已完成 |
+| C6 | MetadataEnricher | [x] | 2026-05-06 | 规则 title/summary/tags、可选 LLM metadata、JSON 校验、降级机制与契约单测已完成 |
+| C7 | ImageCaptioner | [x] | 2026-05-07 | 可选 Vision LLM caption、metadata 写回、禁用/异常降级、未处理图片标记与单测已完成 |
+| C8 | DenseEncoder | [x] | 2026-05-07 | DenseEncoder、EmbeddingFactory 接入、ChunkRecord dense_vector 输出、维度/数量校验与单测已完成 |
+| C9 | SparseEncoder | [x] | 2026-05-07 | SparseEncoder、term frequency、document frequency、doc length/avg length 统计、空文本行为与单测已完成 |
+| C10 | BatchProcessor | [x] | 2026-05-07 | BatchProcessor、BatchResult、dense/sparse 批处理编排、全局 sparse 统计合并、耗时记录与单测已完成 |
+| C11 | BM25Indexer（倒排索引+IDF计算） | [x] | 2026-05-07 | BM25Indexer、倒排索引、IDF公式、JSON持久化、load查询、rebuild/update与单测已完成 |
+| C12 | VectorUpserter（幂等upsert） | [x] | 2026-05-07 | VectorUpserter、稳定 vector id、BaseVectorStore.upsert 转换、重复写入幂等、内容变更换 id 与批量顺序单测已完成 |
+| C13 | ImageStorage（图片存储+SQLite索引） | [x] | 2026-05-07 | ImageStorage、文件/字节图片保存、SQLite image_index、WAL、collection/doc_hash 索引、持久化查询与单测已完成 |
+| C14 | Pipeline 编排（MVP 串起来） | [x] | 2026-05-07 | IngestionPipeline、integrity/load/split/transform/encode/store 串联、进度回调、失败阶段异常、BM25/Vector/Image 输出与集成测试已完成 |
+| C15 | 脚本入口 ingest.py | [x] | 2026-05-07 | scripts/ingest.py、--path/--collection/--force、离线 deterministic embedding、JSON vector store、data/db 产物、重复 skip 与 e2e 测试已完成 |
 
 #### 阶段 D：Retrieval MVP
 
@@ -2068,14 +2068,14 @@ dashboard:
 |------|---------|--------|------|
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 16 | 16 | 100% |
-| 阶段 C | 15 | 1 | 7% |
+| 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 0 | 0% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 6 | 0 | 0% |
 | 阶段 H | 5 | 0 | 0% |
 | 阶段 I | 5 | 0 | 0% |
-| **总计** | **68** | **19** | **27.9%** |
+| **总计** | **68** | **24** | **35.3%** |
 
 
 ---

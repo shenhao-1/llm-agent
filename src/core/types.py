@@ -14,16 +14,16 @@ SparseVector = dict[str, float]
 @dataclass(frozen=True)
 class Document:
     """Parsed source document before chunking."""
-
+    # 创建时必须提供id和text，metadata可选，默认为空字典
     id: str
     text: str
     metadata: Metadata = field(default_factory=dict)
-
+    # 这个是 创建对象后自动调用 检查输入合不合法
     def __post_init__(self) -> None:
         _validate_non_empty_string(self.id, "Document.id")
         _validate_text(self.text, "Document.text")
         _validate_metadata(self.metadata, "Document.metadata")
-
+    #输出字典 方便存储、测试、传给别的模块
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable representation with stable fields."""
         return {
@@ -31,7 +31,7 @@ class Document:
             "text": self.text,
             "metadata": _copy_mapping(self.metadata),
         }
-
+    # 字典恢复对象 重新得到一个 Document 对象。 输入是payload 就是一个字典
     @classmethod
     def from_dict(cls, payload: Mapping[str, Any]) -> "Document":
         """Build a Document from a mapping and validate the contract."""

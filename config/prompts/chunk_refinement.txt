@@ -1,2 +1,5 @@
 Refine the chunk to be self-contained.
 Preserve facts and remove noisy text.
+
+Chunk:
+{text}

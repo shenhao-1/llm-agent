@@ -1,4 +1,4 @@
-"""Unit tests for shared core data contracts."""
+"""Unit tests for shared core data contracts.  单元测试共享核心数据契约。"""
 
 from __future__ import annotations
 

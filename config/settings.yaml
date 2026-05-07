@@ -18,3 +18,14 @@ evaluation:
 observability:
   level: INFO
   traces_path: logs/traces.jsonl
+ingestion:
+  chunk_refiner:
+    use_llm: false
+    prompt_path: config/prompts/chunk_refinement.txt
+  metadata_enricher:
+    use_llm: false
+  image_captioner:
+    enabled: false
+    prompt_path: config/prompts/image_captioning.txt
+  batch_processor:
+    batch_size: 32
