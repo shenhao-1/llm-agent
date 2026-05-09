@@ -133,6 +133,43 @@ class ChunkRecord:
         )
 
 
+@dataclass(frozen=True)
+class RetrievalResult:
+    """Normalized retrieval hit returned by dense/sparse/hybrid retrievers."""
+
+    chunk_id: str
+    score: float
+    text: str
+    metadata: Metadata = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _validate_non_empty_string(self.chunk_id, "RetrievalResult.chunk_id")
+        if not isinstance(self.score, Real):
+            raise ValueError("RetrievalResult.score must be a number")
+        _validate_text(self.text, "RetrievalResult.text")
+        _validate_metadata_loose(self.metadata, "RetrievalResult.metadata")
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a JSON-serializable representation with stable fields."""
+        return {
+            "chunk_id": self.chunk_id,
+            "score": float(self.score),
+            "text": self.text,
+            "metadata": _copy_mapping(self.metadata),
+        }
+
+    @classmethod
+    def from_dict(cls, payload: Mapping[str, Any]) -> "RetrievalResult":
+        """Build a RetrievalResult from a mapping and validate the contract."""
+        _validate_mapping(payload, "RetrievalResult payload")
+        return cls(
+            chunk_id=payload.get("chunk_id"),
+            score=payload.get("score"),
+            text=payload.get("text"),
+            metadata=_copy_mapping(payload.get("metadata", {})),
+        )
+
+
 def image_placeholder(image_id: str) -> str:
     """Return the canonical placeholder used inside Document.text."""
     _validate_non_empty_string(image_id, "image_id")
@@ -183,6 +220,10 @@ def _validate_images(images: Any, field_name: str) -> None:
         position = image.get("position")
         if position is not None and not isinstance(position, Mapping):
             raise ValueError(f"{image_name}.position must be a mapping")
+
+
+def _validate_metadata_loose(metadata: Any, field_name: str) -> None:
+    _validate_mapping(metadata, field_name)
 
 
 def _validate_offsets(start_offset: Any, end_offset: Any) -> None:

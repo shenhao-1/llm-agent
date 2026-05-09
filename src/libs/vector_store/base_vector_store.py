@@ -34,6 +34,23 @@ class BaseVectorStore(ABC):
     ) -> list[dict[str, Any]]:
         """Return the top-k matching records for a query vector."""
 
+    @abstractmethod
+    def get_by_ids(
+        self,
+        ids: list[str],
+        trace: TraceContext | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return records for the requested ids."""
+
+    @staticmethod
+    def validate_ids(ids: list[str]) -> None:
+        """Validate batch id lookup input."""
+        if not isinstance(ids, list):
+            raise ValueError("ids must be a list")
+        for idx, item_id in enumerate(ids):
+            if not isinstance(item_id, str) or not item_id.strip():
+                raise ValueError(f"ids[{idx}] must be a non-empty string")
+
     @staticmethod
     def validate_records(records: list[Mapping[str, Any]]) -> None:
         """Validate the minimal record shape shared by all vector stores."""

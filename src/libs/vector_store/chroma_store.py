@@ -86,6 +86,30 @@ class ChromaStore(BaseVectorStore):
             items.append(item)
         return items
 
+    def get_by_ids(self, ids: list[str], trace=None) -> list[dict[str, Any]]:
+        self.validate_ids(ids)
+        if not ids:
+            return []
+
+        result = self._collection.get(
+            ids=[str(item_id) for item_id in ids],
+            include=["documents", "metadatas"],
+        )
+        result_ids = result.get("ids") or []
+        documents = result.get("documents") or []
+        metadatas = result.get("metadatas") or []
+
+        records_by_id: dict[str, dict[str, Any]] = {}
+        for index, item_id in enumerate(result_ids):
+            record: dict[str, Any] = {"id": str(item_id)}
+            if index < len(documents):
+                record["text"] = documents[index]
+            if index < len(metadatas) and isinstance(metadatas[index], Mapping):
+                record["metadata"] = dict(metadatas[index])
+            records_by_id[str(item_id)] = record
+
+        return [records_by_id[item_id] for item_id in ids if item_id in records_by_id]
+
     @staticmethod
     def _first_row(values: Any) -> list[Any]:
         if isinstance(values, list) and values:

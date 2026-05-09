@@ -64,6 +64,7 @@ class PdfLoader(BaseLoader):
             "source_path": str(source_path),
             "doc_type": "pdf",
             "doc_hash": doc_hash,
+            "collection": collection,
             "page_count": page_count,
             "images": images,
         }

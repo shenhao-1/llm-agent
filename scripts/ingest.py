@@ -81,6 +81,11 @@ class JsonVectorStore(BaseVectorStore):
         self.validate_query_args(vector, top_k, filters)
         return list(self._load_records().values())[:top_k]
 
+    def get_by_ids(self, ids: list[str], trace=None) -> list[dict[str, Any]]:
+        self.validate_ids(ids)
+        records = self._load_records()
+        return [records[item_id] for item_id in ids if item_id in records]
+
     def _load_records(self) -> dict[str, dict[str, Any]]:
         if not self.path.exists():
             return {}

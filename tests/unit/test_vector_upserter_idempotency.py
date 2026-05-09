@@ -41,6 +41,14 @@ class FakeVectorStore(BaseVectorStore):
         self.validate_query_args(vector, top_k, filters)
         return list(self.records_by_id.values())[:top_k]
 
+    def get_by_ids(
+        self,
+        ids: list[str],
+        trace: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        self.validate_ids(ids)
+        return [self.records_by_id[item_id] for item_id in ids if item_id in self.records_by_id]
+
 
 def test_same_chunk_upsert_twice_uses_same_id_without_duplicate_records() -> None:
     store = FakeVectorStore()

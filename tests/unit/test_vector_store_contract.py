@@ -32,6 +32,15 @@ class FakeVectorStore(BaseVectorStore):
         self.validate_query_args(vector, top_k, filters)
         return [dict(record) for record in self._records[:top_k]]
 
+    def get_by_ids(
+        self,
+        ids: list[str],
+        trace: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        self.validate_ids(ids)
+        records_by_id = {str(record["id"]): record for record in self._records}
+        return [dict(records_by_id[item_id]) for item_id in ids if item_id in records_by_id]
+
 
 @pytest.fixture(autouse=True)
 def reset_factory_registry() -> Any:
@@ -125,3 +134,24 @@ def test_query_returns_up_to_top_k_records() -> None:
     results = store.query([1.0, 0.0], top_k=1)
 
     assert [result["id"] for result in results] == ["chunk-1"]
+
+
+@pytest.mark.unit
+def test_get_by_ids_returns_matching_records_in_requested_order() -> None:
+    store = FakeVectorStore()
+    store.upsert(
+        [
+            {"id": "chunk-1", "vector": [1.0, 0.0], "text": "one"},
+            {"id": "chunk-2", "vector": [0.0, 1.0], "text": "two"},
+        ]
+    )
+
+    results = store.get_by_ids(["chunk-2", "missing", "chunk-1"])
+
+    assert [result["id"] for result in results] == ["chunk-2", "chunk-1"]
+
+
+@pytest.mark.unit
+def test_validate_ids_rejects_invalid_ids() -> None:
+    with pytest.raises(ValueError, match=r"ids\[0\]"):
+        FakeVectorStore().validate_ids([""])

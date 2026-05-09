@@ -1,2 +1,9 @@
-Rank candidate chunks by relevance to the query.
-Return only the ranked identifiers in descending order.
+Rank the candidate passages by relevance to the query.
+
+Query:
+{query}
+
+Candidates:
+{candidates}
+
+Return the ranked candidate ids only, from most relevant to least relevant.

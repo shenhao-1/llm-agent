@@ -127,3 +127,36 @@ def test_chroma_store_supports_metadata_filters(tmp_path: Path) -> None:
     results = store.query([1.0, 0.0], top_k=5, filters={"collection": "notes"})
 
     assert [item["id"] for item in results] == ["doc-2"]
+
+
+@pytest.mark.integration
+def test_chroma_store_get_by_ids_returns_text_and_metadata(tmp_path: Path) -> None:
+    store = ChromaStore(
+        {
+            "provider": "chroma",
+            "persist_directory": str(tmp_path / "chroma"),
+            "collection_name": "get-by-ids",
+        }
+    )
+    store.upsert(
+        [
+            {
+                "id": "chunk-1",
+                "text": "first text",
+                "vector": [1.0, 0.0],
+                "metadata": {"source_path": "docs/one.md"},
+            },
+            {
+                "id": "chunk-2",
+                "text": "second text",
+                "vector": [0.0, 1.0],
+                "metadata": {"source_path": "docs/two.md"},
+            },
+        ]
+    )
+
+    records = store.get_by_ids(["chunk-2", "missing", "chunk-1"])
+
+    assert [record["id"] for record in records] == ["chunk-2", "chunk-1"]
+    assert records[0]["text"] == "second text"
+    assert records[0]["metadata"] == {"source_path": "docs/two.md"}

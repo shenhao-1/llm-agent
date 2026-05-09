@@ -2000,13 +2000,13 @@ dashboard:
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| D1 | QueryProcessor（关键词提取 + filters） | [ ] | | |
-| D2 | DenseRetriever（调用 VectorStore.query） | [ ] | | |
-| D3 | SparseRetriever（BM25 查询） | [ ] | | |
-| D4 | RRF Fusion | [ ] | | |
-| D5 | HybridSearch 编排 | [ ] | | |
-| D6 | Reranker（Core 层编排 + Fallback） | [ ] | | |
-| D7 | 脚本入口 query.py（查询可用） | [ ] | | |
+| D1 | QueryProcessor（关键词提取 + filters） | [x] | 2026-05-08 | QueryProcessor、ProcessedQuery、规则关键词提取、停用词过滤、field:value filters 解析、trace 与单测已完成 |
+| D2 | DenseRetriever（调用 VectorStore.query） | [x] | 2026-05-09 | RetrievalResult、DenseRetriever、query embedding、VectorStore.query 编排、filters 透传、distance/score 归一化、trace 与单测已完成 |
+| D3 | SparseRetriever（BM25 查询） | [x] | 2026-05-09 | BaseVectorStore/ChromaStore.get_by_ids、SparseRetriever、BM25 keywords 查询、text/metadata 补全、RetrievalResult 组装、trace 与单测已完成 |
+| D4 | RRF Fusion | [x] | 2026-05-09 | RRFFusion、RRF 排名融合、k/权重可配置、重复 chunk 去重合并、deterministic 排序、trace 与单测已完成 |
+| D5 | HybridSearch 编排 | [x] | 2026-05-09 | HybridSearch、QueryProcessor+Dense/Sparse+RRFFusion 编排、metadata filters 后置过滤、单路失败降级、trace 与集成测试已完成 |
+| D6 | Reranker（Core 层编排 + Fallback） | [x] | 2026-05-09 | Reranker、libs.reranker backend 接入、异常/超时 fallback、rerank_fallback 标记、trace 与单测已完成 |
+| D7 | 脚本入口 query.py（查询可用） | [x] | 2026-05-09 | scripts/query.py、HybridSearch+Reranker CLI、top-k/collection/verbose/no-rerank 参数、离线 JSON/BM25 索引读取、友好空数据提示与单测已完成 |
 
 #### 阶段 E：MCP Server 层与 Tools
 
@@ -2069,13 +2069,13 @@ dashboard:
 | 阶段 A | 3 | 3 | 100% |
 | 阶段 B | 16 | 16 | 100% |
 | 阶段 C | 15 | 15 | 100% |
-| 阶段 D | 7 | 0 | 0% |
+| 阶段 D | 7 | 7 | 100% |
 | 阶段 E | 6 | 0 | 0% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 6 | 0 | 0% |
 | 阶段 H | 5 | 0 | 0% |
 | 阶段 I | 5 | 0 | 0% |
-| **总计** | **68** | **24** | **35.3%** |
+| **总计** | **68** | **31** | **45.6%** |
 
 
 ---

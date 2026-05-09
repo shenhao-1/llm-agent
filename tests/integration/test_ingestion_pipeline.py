@@ -65,6 +65,14 @@ class FakeVectorStore(BaseVectorStore):
         self.validate_query_args(vector, top_k, filters)
         return list(self.records_by_id.values())[:top_k]
 
+    def get_by_ids(
+        self,
+        ids: list[str],
+        trace: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        self.validate_ids(ids)
+        return [self.records_by_id[item_id] for item_id in ids if item_id in self.records_by_id]
+
 
 class FailingLoader:
     def load(self, path: str | Path, trace: Any | None = None):
