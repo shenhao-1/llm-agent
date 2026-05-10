@@ -2012,12 +2012,12 @@ dashboard:
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| E1 | MCP Server 入口与 Stdio 约束 | [ ] | | |
-| E2 | Protocol Handler 协议解析与能力协商 | [ ] | | |
-| E3 | query_knowledge_hub Tool | [ ] | | |
-| E4 | list_collections Tool | [ ] | | |
-| E5 | get_document_summary Tool | [ ] | | |
-| E6 | 多模态返回组装（Text + Image） | [ ] | | |
+| E1 | MCP Server 入口与 Stdio 约束 | [x] | 2026-05-09 | mcp_server.server stdio JSON-RPC 入口、initialize 握手、stdout 仅 MCP JSON、stderr 日志、子进程集成测试已完成 |
+| E2 | Protocol Handler 协议解析与能力协商 | [x] | 2026-05-09 | ProtocolHandler、ToolDefinition、initialize/tools-list/tools-call、JSON-RPC 标准错误码、server 委托协议层与单测已完成 |
+| E3 | query_knowledge_hub Tool | [x] | 2026-05-09 | query_knowledge_hub tool、ResponseBuilder、CitationGenerator、Markdown+structured citations、无结果友好提示、MCP 集成测试已完成 |
+| E4 | list_collections Tool | [x] | 2026-05-10 | list_collections tool、data/documents 集合扫描、collection_names/document_count/total_bytes 统计、MCP 注册与单测已完成 |
+| E5 | get_document_summary Tool | [x] | 2026-05-10 | get_document_summary tool、vectors metadata 摘要聚合、doc_hash/source_path/stem 查询、not found 规范 JSON-RPC 错误、单测与 MCP 集成测试已完成 |
+| E6 | 多模态返回组装（Text + Image） | [x] | 2026-05-10 | MultimodalAssembler、命中 chunk images/image_refs 读取、ImageContent base64/mimeType、ResponseBuilder 接入与 MCP 集成测试已完成 |
 
 #### 阶段 F：Trace 基础设施与打点
 
@@ -2070,12 +2070,12 @@ dashboard:
 | 阶段 B | 16 | 16 | 100% |
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
-| 阶段 E | 6 | 0 | 0% |
+| 阶段 E | 6 | 6 | 100% |
 | 阶段 F | 5 | 0 | 0% |
 | 阶段 G | 6 | 0 | 0% |
 | 阶段 H | 5 | 0 | 0% |
 | 阶段 I | 5 | 0 | 0% |
-| **总计** | **68** | **31** | **45.6%** |
+| **总计** | **68** | **37** | **54.4%** |
 
 
 ---
