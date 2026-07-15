@@ -1,1 +1,32 @@
-[]
+{
+  "test_cases": [
+    {
+      "query": "How do I configure Azure OpenAI endpoints?",
+      "expected_chunk_ids": ["chunk-azure-config"],
+      "expected_sources": ["docs/azure_config.pdf"],
+      "collection": "docs",
+      "top_k": 5
+    },
+    {
+      "query": "What is BM25 sparse retrieval used for?",
+      "expected_chunk_ids": ["chunk-bm25-overview"],
+      "expected_sources": ["docs/bm25_overview.pdf"],
+      "collection": "docs",
+      "top_k": 5
+    },
+    {
+      "query": "How can I run evaluation from the Dashboard?",
+      "expected_chunk_ids": ["chunk-dashboard-eval"],
+      "expected_sources": ["docs/dashboard_evaluation.pdf"],
+      "collection": "docs",
+      "top_k": 5
+    },
+    {
+      "query": "Why does the ingestion pipeline generate image captions?",
+      "expected_chunk_ids": ["chunk-image-captioning"],
+      "expected_sources": ["docs/image_captioning.pdf"],
+      "collection": "docs",
+      "top_k": 5
+    }
+  ]
+}

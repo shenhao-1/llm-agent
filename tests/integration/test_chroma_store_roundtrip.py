@@ -160,3 +160,112 @@ def test_chroma_store_get_by_ids_returns_text_and_metadata(tmp_path: Path) -> No
     assert [record["id"] for record in records] == ["chunk-2", "chunk-1"]
     assert records[0]["text"] == "second text"
     assert records[0]["metadata"] == {"source_path": "docs/two.md"}
+
+
+@pytest.mark.integration
+def test_chroma_store_returns_collection_stats(tmp_path: Path) -> None:
+    store = ChromaStore(
+        {
+            "provider": "chroma",
+            "persist_directory": str(tmp_path / "chroma"),
+            "collection_name": "stats",
+            "distance": "cosine",
+        }
+    )
+    store.upsert(
+        [
+            {
+                "id": "chunk-1",
+                "text": "stats text",
+                "vector": [1.0, 0.0],
+                "metadata": {"source_path": "docs/stats.md"},
+            }
+        ]
+    )
+
+    stats = store.get_collection_stats()
+
+    assert stats == {
+        "provider": "chroma",
+        "collection_name": "stats",
+        "persist_directory": str(tmp_path / "chroma"),
+        "distance": "cosine",
+        "record_count": 1,
+    }
+
+
+@pytest.mark.integration
+def test_chroma_store_delete_by_metadata_removes_matching_records(tmp_path: Path) -> None:
+    store = ChromaStore(
+        {
+            "provider": "chroma",
+            "persist_directory": str(tmp_path / "chroma"),
+            "collection_name": "delete-metadata",
+        }
+    )
+    store.upsert(
+        [
+            {
+                "id": "chunk-1",
+                "text": "delete me",
+                "vector": [1.0, 0.0],
+                "metadata": {"source_path": "docs/a.pdf", "collection": "docs"},
+            },
+            {
+                "id": "chunk-2",
+                "text": "keep me",
+                "vector": [0.0, 1.0],
+                "metadata": {"source_path": "docs/b.pdf", "collection": "docs"},
+            },
+        ]
+    )
+
+    deleted = store.delete_by_metadata(
+        {"source_path": "docs/a.pdf", "collection": "docs"}
+    )
+
+    assert deleted == 1
+    assert store.get_by_ids(["chunk-1", "chunk-2"]) == [
+        {
+            "id": "chunk-2",
+            "text": "keep me",
+            "metadata": {"source_path": "docs/b.pdf", "collection": "docs"},
+        }
+    ]
+
+
+@pytest.mark.integration
+def test_chroma_store_get_by_metadata_returns_matching_records(tmp_path: Path) -> None:
+    store = ChromaStore(
+        {
+            "provider": "chroma",
+            "persist_directory": str(tmp_path / "chroma"),
+            "collection_name": "get-metadata",
+        }
+    )
+    store.upsert(
+        [
+            {
+                "id": "chunk-1",
+                "text": "docs text",
+                "vector": [1.0, 0.0],
+                "metadata": {"collection": "docs", "source_path": "docs/a.pdf"},
+            },
+            {
+                "id": "chunk-2",
+                "text": "notes text",
+                "vector": [0.0, 1.0],
+                "metadata": {"collection": "notes", "source_path": "notes/b.pdf"},
+            },
+        ]
+    )
+
+    records = store.get_by_metadata({"collection": "docs"})
+
+    assert records == [
+        {
+            "id": "chunk-1",
+            "text": "docs text",
+            "metadata": {"collection": "docs", "source_path": "docs/a.pdf"},
+        }
+    ]

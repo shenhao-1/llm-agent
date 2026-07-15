@@ -116,6 +116,20 @@ def test_concurrent_success_writes_are_supported(tmp_path) -> None:
     assert all(results)
 
 
+def test_list_processed_and_remove_record_support_document_manager(tmp_path) -> None:
+    checker = SQLiteIntegrityChecker(tmp_path / "history.db")
+    checker.mark_success("hash-a", "docs/a.pdf", metadata={"collection": "docs"})
+    checker.mark_failed("hash-b", "docs/b.pdf")
+
+    records = checker.list_processed()
+
+    assert {record["file_hash"] for record in records} == {"hash-a", "hash-b"}
+    assert checker.remove_record("docs/a.pdf") == 1
+    assert checker.get_record("hash-a") is None
+    assert checker.remove_record("hash-b") == 1
+    assert checker.list_processed() == []
+
+
 def test_mark_success_validates_inputs(tmp_path) -> None:
     checker = SQLiteIntegrityChecker(tmp_path / "history.db")
 

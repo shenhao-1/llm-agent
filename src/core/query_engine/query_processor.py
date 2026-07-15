@@ -128,7 +128,7 @@ class QueryProcessor:
 
         if trace is not None:
             trace.record_stage(
-                "query_process",
+                "query_processing",
                 method="query_processor",
                 details={
                     "keyword_count": len(result.keywords),

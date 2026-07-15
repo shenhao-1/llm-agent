@@ -8,6 +8,7 @@ import pytest
 
 from core.settings import Settings
 from libs.vector_store.base_vector_store import BaseVectorStore
+from libs.vector_store.chroma_store import ChromaStore
 from libs.vector_store.vector_store_factory import VectorStoreFactory
 
 
@@ -40,6 +41,31 @@ class FakeVectorStore(BaseVectorStore):
         self.validate_ids(ids)
         records_by_id = {str(record["id"]): record for record in self._records}
         return [dict(records_by_id[item_id]) for item_id in ids if item_id in records_by_id]
+
+    def delete_by_metadata(self, filters: Mapping[str, Any]) -> int:
+        if not isinstance(filters, Mapping) or not filters:
+            raise ValueError("filters must be a non-empty mapping")
+        before = len(self._records)
+        self._records = [
+            record
+            for record in self._records
+            if not _metadata_matches(record.get("metadata", {}), filters)
+        ]
+        return before - len(self._records)
+
+
+class FakeChromaCollection:
+    def __init__(self, ids: list[str]) -> None:
+        self.ids = list(ids)
+        self.deleted_ids: list[str] = []
+        self.where: Any = None
+
+    def get(self, where: Any = None):
+        self.where = where
+        return {"ids": list(self.ids)}
+
+    def delete(self, ids: list[str]) -> None:
+        self.deleted_ids.extend(ids)
 
 
 @pytest.fixture(autouse=True)
@@ -155,3 +181,66 @@ def test_get_by_ids_returns_matching_records_in_requested_order() -> None:
 def test_validate_ids_rejects_invalid_ids() -> None:
     with pytest.raises(ValueError, match=r"ids\[0\]"):
         FakeVectorStore().validate_ids([""])
+
+
+@pytest.mark.unit
+def test_delete_by_metadata_removes_matching_records_and_returns_count() -> None:
+    store = FakeVectorStore()
+    store.upsert(
+        [
+            {
+                "id": "chunk-1",
+                "vector": [1.0, 0.0],
+                "metadata": {"source_path": "docs/a.pdf", "collection": "docs"},
+            },
+            {
+                "id": "chunk-2",
+                "vector": [0.0, 1.0],
+                "metadata": {"source_path": "docs/b.pdf", "collection": "docs"},
+            },
+        ]
+    )
+
+    deleted = store.delete_by_metadata({"source_path": "docs/a.pdf"})
+
+    assert deleted == 1
+    assert [record["id"] for record in store.query([1.0], top_k=10)] == ["chunk-2"]
+
+
+@pytest.mark.unit
+def test_delete_by_metadata_rejects_empty_filters() -> None:
+    with pytest.raises(ValueError, match="filters must be a non-empty mapping"):
+        FakeVectorStore().delete_by_metadata({})
+
+
+@pytest.mark.unit
+def test_chroma_delete_by_metadata_returns_zero_without_matches() -> None:
+    store = object.__new__(ChromaStore)
+    store._collection = FakeChromaCollection([])
+
+    deleted = store.delete_by_metadata({"source_path": "docs/missing.pdf"})
+
+    assert deleted == 0
+    assert store._collection.deleted_ids == []
+
+
+@pytest.mark.unit
+def test_chroma_delete_by_metadata_deletes_all_matching_ids_with_and_filter() -> None:
+    store = object.__new__(ChromaStore)
+    store._collection = FakeChromaCollection(["chunk-1", "chunk-2"])
+
+    deleted = store.delete_by_metadata(
+        {"source_path": "docs/a.pdf", "collection": "docs"}
+    )
+
+    assert deleted == 2
+    assert store._collection.where == {
+        "$and": [{"source_path": "docs/a.pdf"}, {"collection": "docs"}]
+    }
+    assert store._collection.deleted_ids == ["chunk-1", "chunk-2"]
+
+
+def _metadata_matches(metadata: Any, filters: Mapping[str, Any]) -> bool:
+    if not isinstance(metadata, Mapping):
+        return False
+    return all(metadata.get(key) == value for key, value in filters.items())

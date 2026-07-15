@@ -147,6 +147,95 @@ class ImageStorage:
             ).fetchall()
         return [self._row_to_record(row) for row in rows]
 
+    def list_images(
+        self,
+        *,
+        collection: str | None = None,
+        doc_hash: str | None = None,
+    ) -> list[ImageRecord]:
+        """Return indexed images with optional collection and document filters."""
+        normalized_collection = (
+            _validate_name(collection, "collection") if collection is not None else None
+        )
+        normalized_hash = (
+            _validate_name(doc_hash, "doc_hash") if doc_hash is not None else None
+        )
+        where_parts: list[str] = []
+        params: list[str] = []
+        if normalized_collection is not None:
+            where_parts.append("collection = ?")
+            params.append(normalized_collection)
+        if normalized_hash is not None:
+            where_parts.append("doc_hash = ?")
+            params.append(normalized_hash)
+        where_clause = f"WHERE {' AND '.join(where_parts)}" if where_parts else ""
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"""
+                SELECT * FROM image_index
+                {where_clause}
+                ORDER BY collection, doc_hash, image_id
+                """,
+                params,
+            ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    def list_by_document(
+        self,
+        doc_hash: str,
+        collection: str | None = None,
+    ) -> list[ImageRecord]:
+        """Return indexed images for one document hash."""
+        normalized_hash = _validate_name(doc_hash, "doc_hash")
+        normalized_collection = (
+            _validate_name(collection, "collection") if collection is not None else None
+        )
+        with self._connect() as conn:
+            if normalized_collection is None:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM image_index
+                    WHERE doc_hash = ?
+                    ORDER BY image_id
+                    """,
+                    (normalized_hash,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    SELECT * FROM image_index
+                    WHERE doc_hash = ? AND collection = ?
+                    ORDER BY image_id
+                    """,
+                    (normalized_hash, normalized_collection),
+                ).fetchall()
+        return [self._row_to_record(row) for row in rows]
+
+    def delete_by_document(
+        self,
+        doc_hash: str,
+        collection: str | None = None,
+    ) -> int:
+        """Delete indexed image records and managed files for one document."""
+        records = self.list_by_document(doc_hash, collection)
+        if not records:
+            return 0
+
+        with self._connect() as conn:
+            if collection is None:
+                conn.execute("DELETE FROM image_index WHERE doc_hash = ?", (doc_hash,))
+            else:
+                conn.execute(
+                    "DELETE FROM image_index WHERE doc_hash = ? AND collection = ?",
+                    (doc_hash, collection),
+                )
+
+        for record in records:
+            path = Path(record.file_path)
+            if path.exists() and path.is_file():
+                path.unlink()
+        return len(records)
+
     def journal_mode(self) -> str:
         """Return active SQLite journal mode for diagnostics/tests."""
         with self._connect() as conn:

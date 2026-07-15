@@ -161,6 +161,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"query failed: {exc}", file=sys.stderr)
         return 2
 
+    if trace is not None:
+        trace.finish()
     _print_results(results, top_k=args.top_k)
     if args.verbose and trace is not None:
         _print_trace(trace)

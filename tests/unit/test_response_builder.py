@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 import pytest
 
 from core.response import CitationGenerator, ResponseBuilder
@@ -76,7 +79,9 @@ def test_citation_generator_validates_retrieval_results() -> None:
         CitationGenerator().generate([{"bad": "shape"}])  # type: ignore[list-item]
 
 
-def test_query_knowledge_hub_uses_search_rerank_and_response_builder() -> None:
+def test_query_knowledge_hub_uses_search_rerank_and_response_builder(
+    tmp_path: Path,
+) -> None:
     search = FakeSearch(
         [
             RetrievalResult(
@@ -101,6 +106,7 @@ def test_query_knowledge_hub_uses_search_rerank_and_response_builder() -> None:
         collection="docs",
         search=search,  # type: ignore[arg-type]
         reranker=reranker,  # type: ignore[arg-type]
+        trace_log_path=tmp_path / "traces.jsonl",
     )
 
     assert search.calls == [
@@ -109,6 +115,12 @@ def test_query_knowledge_hub_uses_search_rerank_and_response_builder() -> None:
     assert reranker.calls == [["chunk-2", "chunk-1"]]
     assert response["structuredContent"]["citations"][0]["chunk_id"] == "chunk-1"
     assert "[1]" in response["content"][0]["text"]
+    trace_payload = json.loads((tmp_path / "traces.jsonl").read_text(encoding="utf-8"))
+    assert trace_payload["trace_type"] == "query"
+    assert trace_payload["query"] == "rank these"
+    assert trace_payload["collection"] == "docs"
+    assert trace_payload["top_k"] == 2
+    assert trace_payload["result_count"] == 2
 
 
 def test_query_knowledge_hub_validates_arguments() -> None:
@@ -123,7 +135,7 @@ class FakeSearch:
         self.results = results
         self.calls: list[dict[str, object]] = []
 
-    def search(self, query: str, top_k: int, filters=None):
+    def search(self, query: str, top_k: int, filters=None, trace=None):
         self.calls.append({"query": query, "top_k": top_k, "filters": filters})
         return self.results[:top_k]
 
@@ -132,6 +144,6 @@ class FakeReranker:
     def __init__(self) -> None:
         self.calls: list[list[str]] = []
 
-    def rerank(self, query: str, candidates: list[RetrievalResult]):
+    def rerank(self, query: str, candidates: list[RetrievalResult], trace=None):
         self.calls.append([candidate.chunk_id for candidate in candidates])
         return list(reversed(candidates))

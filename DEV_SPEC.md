@@ -2023,42 +2023,42 @@ dashboard:
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| F1 | TraceContext 增强（finish + 耗时统计 + trace_type） | [ ] | | |
-| F2 | 结构化日志 logger（JSON Lines） | [ ] | | |
-| F3 | 在 Query 链路打点 | [ ] | | |
-| F4 | 在 Ingestion 链路打点 | [ ] | | |
-| F5 | Pipeline 进度回调 (on_progress) | [ ] | | |
+| F1 | TraceContext 增强（finish + 耗时统计 + trace_type） | [x] | 2026-05-11 | TraceContext finish/elapsed_ms/started_at/finished_at/total_elapsed_ms、TraceCollector JSONL 收集与单测已完成 |
+| F2 | 结构化日志 logger（JSON Lines） | [x] | 2026-05-11 | JSONFormatter、get_trace_logger、write_trace、logs/traces.jsonl JSONL 追加与单测已完成 |
+| F3 | 在 Query 链路打点 | [x] | 2026-05-21 | QueryProcessor/DenseRetriever/SparseRetriever 阶段名统一为 query_processing/dense_retrieval/sparse_retrieval，HybridSearch + Reranker 集成 trace 验收已完成 |
+| F4 | 在 Ingestion 链路打点 | [x] | 2026-06-01 | IngestionPipeline 聚合记录 load/split/transform/embed/upsert 阶段，trace_type=ingestion 集成验收已完成 |
+| F5 | Pipeline 进度回调 (on_progress) | [x] | 2026-06-02 | IngestionPipeline.run/on_progress 回调验收与 tests/unit/test_pipeline_progress.py 已完成 |
 
 #### 阶段 G：可视化管理平台 Dashboard
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| G1 | Dashboard 基础架构与系统总览页 | [ ] | | |
-| G2 | DocumentManager 实现 | [ ] | | |
-| G3 | 数据浏览器页面 | [ ] | | |
-| G4 | Ingestion 管理页面 | [ ] | | |
-| G5 | Ingestion 追踪页面 | [ ] | | |
-| G6 | Query 追踪页面 | [ ] | | |
+| G1 | Dashboard 基础架构与系统总览页 | [x] | 2026-06-02 | Streamlit 多页入口、系统总览页、ConfigService、Chroma stats、start_dashboard 脚本与单测已完成 |
+| G2 | DocumentManager 实现 | [x] | 2026-06-02 | DocumentManager list/detail/delete/stats 与 Chroma/BM25/ImageStorage/FileIntegrity 删除协同已完成 |
+| G3 | 数据浏览器页面 | [x] | 2026-06-03 | DataService 与 Dashboard 数据浏览器页面已完成，支持文档列表、集合过滤、chunk 详情与图片预览 |
+| G4 | Ingestion 管理页面 | [x] | 2026-06-03 | Dashboard IngestionManager 已完成，支持 PDF 上传、IngestionPipeline.run(on_progress) 实时进度条与 DocumentManager.delete_document 删除 |
+| G5 | Ingestion 追踪页面 | [x] | 2026-06-03 | TraceService 解析 logs/traces.jsonl、IngestionTraces 历史列表/阶段耗时横向条形图/阶段详情已完成，Dashboard 摄入会写入 ingestion trace |
+| G6 | Query 追踪页面 | [x] | 2026-06-03 | QueryTraces 历史列表/关键词过滤/阶段耗时横向条形图/Dense-Sparse 对比/Rerank 变化已完成，query_knowledge_hub 会写入 query trace |
 
 #### 阶段 H：评估体系
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| H1 | RagasEvaluator 实现 | [ ] | | |
-| H2 | CompositeEvaluator 实现 | [ ] | | |
-| H3 | EvalRunner + Golden Test Set | [ ] | | |
-| H4 | 评估面板页面 | [ ] | | |
-| H5 | Recall 回归测试（E2E） | [ ] | | |
+| H1 | RagasEvaluator 实现 | [x] | 2026-06-03 | RagasEvaluator 适配 BaseEvaluator、支持 faithfulness/answer_relevancy/context_precision、Ragas 缺失 ImportError 降级提示、factory ragas provider 与单测已完成 |
+| H2 | CompositeEvaluator 实现 | [x] | 2026-06-03 | CompositeEvaluator 并行执行多 evaluator、合并带前缀 metrics，EvaluatorFactory 支持 evaluation.backends 配置驱动组合与单测已完成 |
+| H3 | EvalRunner + Golden Test Set | [x] | 2026-06-03 | EvalRunner/EvalReport、golden_test_set.json、scripts/evaluate.py 与单测已完成，脚本支持本地索引评估并在缺索引时给出明确提示 |
+| H4 | 评估面板页面 | [x] | 2026-06-03 | Dashboard Evaluation Panel 已完成，支持 backend/golden set/top_k 选择、运行 EvalRunner、展示指标与 query 明细，并持久化历史用于趋势对比 |
+| H5 | Recall 回归测试（E2E） | [x] | 2026-06-03 | tests/e2e/test_recall.py 已完成，基于 golden_test_set 走 HybridSearch + EvalRunner + CustomEvaluator，固定 hit_rate/recall_at_k/mrr 阈值做召回回归 |
 
 #### 阶段 I：端到端验收与文档收口
 
 | 任务编号 | 任务名称 | 状态 | 完成日期 | 备注 |
 |---------|---------|------|---------|------|
-| I1 | E2E：MCP Client 侧调用模拟 | [ ] | | |
-| I2 | E2E：Dashboard 冒烟测试 | [ ] | | |
-| I3 | 完善 README（运行说明 + MCP + Dashboard） | [ ] | | |
-| I4 | 清理接口一致性（契约测试补齐） | [ ] | | |
-| I5 | 全链路 E2E 验收 | [ ] | | |
+| I1 | E2E：MCP Client 侧调用模拟 | [x] | 2026-06-12 | tests/e2e/test_mcp_client.py 已完成，使用同一 stdio server 子进程模拟 initialize、notifications/initialized、tools/list 与 query_knowledge_hub tools/call，并断言返回 citations |
+| I2 | E2E：Dashboard 冒烟测试 | [x] | 2026-07-15 | tests/e2e/test_dashboard_smoke.py 已完成，使用 Streamlit AppTest 对 6 个 Dashboard 页面做临时数据环境下的加载冒烟，断言无 st.exception/st.error |
+| I3 | 完善 README（运行说明 + MCP + Dashboard） | [x] | 2026-07-15 | README 已补齐快速开始、settings.yaml 配置说明、GitHub Copilot/Claude Desktop MCP 配置示例、Dashboard 使用指南、分层测试命令与 API Key/依赖/连接排障 FAQ |
+| I4 | 清理接口一致性（契约测试补齐） | [x] | 2026-07-15 | VectorStore delete_by_metadata、RerankerFactory 注册/配置边界、CustomEvaluator 输入与重复 ID 指标边界测试已补齐，pytest -q 全绿 |
+| I5 | 全链路 E2E 验收 | [x] | 2026-07-15 | 已用临时数据目录走通 ingest -> query CLI -> MCP query_knowledge_hub -> Dashboard smoke -> evaluate，并完成 pytest -q 全量测试 |
 
 ---
 
@@ -2071,11 +2071,11 @@ dashboard:
 | 阶段 C | 15 | 15 | 100% |
 | 阶段 D | 7 | 7 | 100% |
 | 阶段 E | 6 | 6 | 100% |
-| 阶段 F | 5 | 0 | 0% |
-| 阶段 G | 6 | 0 | 0% |
-| 阶段 H | 5 | 0 | 0% |
-| 阶段 I | 5 | 0 | 0% |
-| **总计** | **68** | **37** | **54.4%** |
+| 阶段 F | 5 | 5 | 100% |
+| 阶段 G | 6 | 6 | 100% |
+| 阶段 H | 5 | 5 | 100% |
+| 阶段 I | 5 | 5 | 100% |
+| **总计** | **68** | **68** | **100%** |
 
 
 ---

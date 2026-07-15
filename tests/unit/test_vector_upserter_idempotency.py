@@ -141,7 +141,7 @@ def test_trace_records_vector_upsert_stage() -> None:
 
     result = VectorUpserter(vector_store=FakeVectorStore()).upsert([record], trace=trace)
 
-    assert trace.stages[-1]["name"] == "store"
+    assert trace.stages[-1]["name"] == "upsert"
     assert trace.stages[-1]["method"] == "vector_upserter"
     assert trace.stages[-1]["details"] == {"record_count": 1, "ids": result.ids}
 

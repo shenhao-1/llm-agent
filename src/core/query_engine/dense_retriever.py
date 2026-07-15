@@ -61,7 +61,7 @@ class DenseRetriever:
 
         if trace is not None:
             trace.record_stage(
-                "retrieve",
+                "dense_retrieval",
                 method="dense_retriever",
                 details={
                     "top_k": top_k,

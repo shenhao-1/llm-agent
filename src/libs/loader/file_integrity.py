@@ -44,6 +44,14 @@ class FileIntegrityChecker(ABC):
     ) -> None:
         """Record a failed ingestion for a file hash."""
 
+    @abstractmethod
+    def list_processed(self) -> list[dict[str, Any]]:
+        """Return persisted ingestion history records."""
+
+    @abstractmethod
+    def remove_record(self, file_hash_or_path: str | Path) -> int:
+        """Remove matching ingestion history records and return the count."""
+
 
 class SQLiteIntegrityChecker(FileIntegrityChecker):
     """SQLite-backed ingestion history with WAL enabled for concurrent writes."""
@@ -161,6 +169,37 @@ class SQLiteIntegrityChecker(FileIntegrityChecker):
         metadata_json = record.pop("metadata_json")
         record["metadata"] = json.loads(metadata_json) if metadata_json else {}
         return record
+
+    def list_processed(self) -> list[dict[str, Any]]:
+        """Return ingestion history records in deterministic order."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT * FROM ingestion_history
+                ORDER BY updated_at DESC, file_path ASC, file_hash ASC
+                """
+            ).fetchall()
+
+        records: list[dict[str, Any]] = []
+        for row in rows:
+            record = dict(row)
+            metadata_json = record.pop("metadata_json")
+            record["metadata"] = json.loads(metadata_json) if metadata_json else {}
+            records.append(record)
+        return records
+
+    def remove_record(self, file_hash_or_path: str | Path) -> int:
+        """Remove history rows matching either file hash or source path."""
+        value = _validate_file_path(file_hash_or_path)
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                DELETE FROM ingestion_history
+                WHERE file_hash = ? OR file_path = ?
+                """,
+                (value, value),
+            )
+            return int(cursor.rowcount if cursor.rowcount is not None else 0)
 
     def journal_mode(self) -> str:
         """Return the active SQLite journal mode."""

@@ -173,7 +173,7 @@ def test_trace_records_dense_retrieval_stage() -> None:
         vector_store=store,
     ).retrieve("query", top_k=1, filters={"collection": "docs"}, trace=trace)
 
-    assert trace.stages[-1]["name"] == "retrieve"
+    assert trace.stages[-1]["name"] == "dense_retrieval"
     assert trace.stages[-1]["method"] == "dense_retriever"
     assert trace.stages[-1]["details"] == {
         "top_k": 1,

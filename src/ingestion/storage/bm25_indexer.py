@@ -93,6 +93,37 @@ class BM25Indexer:
             self.save()
         return self
 
+    def remove_document(
+        self,
+        source_path: str,
+        collection: str | None = None,
+        *,
+        persist: bool = True,
+    ) -> int:
+        """Remove all chunks matching a source path and optional collection."""
+        if not isinstance(source_path, str) or not source_path.strip():
+            raise ValueError("source_path must be a non-empty string")
+        if collection is not None and (
+            not isinstance(collection, str) or not collection.strip()
+        ):
+            raise ValueError("collection must be a non-empty string when provided")
+
+        removed_ids = [
+            chunk_id
+            for chunk_id, record in self.documents.items()
+            if record.metadata.get("source_path") == source_path
+            and (collection is None or record.metadata.get("collection") == collection)
+        ]
+        for chunk_id in removed_ids:
+            self.documents.pop(chunk_id, None)
+            self.doc_lengths.pop(chunk_id, None)
+
+        if removed_ids:
+            self._recompute_index()
+            if persist:
+                self.save()
+        return len(removed_ids)
+
     def save(self) -> Path:
         """Persist the current index to disk as deterministic JSON."""
         self.index_dir.mkdir(parents=True, exist_ok=True)

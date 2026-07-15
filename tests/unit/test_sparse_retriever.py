@@ -145,7 +145,7 @@ def test_trace_records_sparse_retrieval_stage(tmp_path) -> None:
         trace=trace,
     )
 
-    assert trace.stages[-1]["name"] == "retrieve"
+    assert trace.stages[-1]["name"] == "sparse_retrieval"
     assert trace.stages[-1]["method"] == "sparse_retriever"
     assert trace.stages[-1]["details"] == {
         "keyword_count": 1,

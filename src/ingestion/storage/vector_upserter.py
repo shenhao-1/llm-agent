@@ -161,7 +161,7 @@ class VectorUpserter:
         if trace is None:
             return
         trace.record_stage(
-            "store",
+            "upsert",
             method="vector_upserter",
             details={"record_count": result.count, "ids": list(result.ids)},
         )

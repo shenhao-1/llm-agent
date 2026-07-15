@@ -71,6 +71,37 @@ def test_create_raises_on_unknown_provider() -> None:
 
 
 @pytest.mark.unit
+def test_create_raises_on_missing_rerank_section() -> None:
+    with pytest.raises(ValueError, match="Missing or invalid settings section: rerank"):
+        RerankerFactory.create({})
+
+
+@pytest.mark.unit
+def test_create_rejects_non_mapping_settings() -> None:
+    with pytest.raises(TypeError, match="settings must be Settings or Mapping"):
+        RerankerFactory.create(["bad"])  # type: ignore[arg-type]
+
+
+@pytest.mark.unit
+def test_create_defaults_blank_provider_to_none_reranker() -> None:
+    instance = RerankerFactory.create({"rerank": {"provider": "   "}})
+
+    assert isinstance(instance, NoneReranker)
+
+
+@pytest.mark.unit
+def test_register_provider_rejects_invalid_name() -> None:
+    with pytest.raises(ValueError, match="Provider name must be a non-empty string"):
+        RerankerFactory.register_provider("", FakeReranker)
+
+
+@pytest.mark.unit
+def test_register_provider_rejects_non_reranker_class() -> None:
+    with pytest.raises(TypeError, match="provider_cls must inherit from BaseReranker"):
+        RerankerFactory.register_provider("bad", object)  # type: ignore[arg-type]
+
+
+@pytest.mark.unit
 def test_none_reranker_preserves_input_order() -> None:
     reranker = NoneReranker()
     candidates = [
@@ -88,6 +119,21 @@ def test_none_reranker_preserves_input_order() -> None:
 def test_validate_candidates_rejects_missing_text() -> None:
     with pytest.raises(ValueError, match=r"candidates\[0\]\.text"):
         NoneReranker().rerank("query", [{"id": "chunk-1"}])
+
+
+@pytest.mark.unit
+def test_validate_candidates_rejects_non_mapping_candidate() -> None:
+    with pytest.raises(ValueError, match=r"candidates\[0\] must be a mapping"):
+        NoneReranker().rerank("query", ["bad"])  # type: ignore[list-item]
+
+
+@pytest.mark.unit
+def test_validate_candidates_rejects_non_mapping_metadata() -> None:
+    with pytest.raises(ValueError, match=r"candidates\[0\]\.metadata"):
+        NoneReranker().rerank(
+            "query",
+            [{"id": "chunk-1", "text": "alpha", "metadata": "bad"}],
+        )
 
 
 @pytest.mark.unit

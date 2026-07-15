@@ -65,7 +65,7 @@ class ChromaStore(BaseVectorStore):
         result = self._collection.query(
             query_embeddings=[[float(value) for value in vector]],
             n_results=top_k,
-            where=dict(filters) if filters else None,
+            where=_metadata_where(filters),
             include=["documents", "metadatas", "distances"],
         )
 
@@ -110,6 +110,58 @@ class ChromaStore(BaseVectorStore):
 
         return [records_by_id[item_id] for item_id in ids if item_id in records_by_id]
 
+    def get_by_metadata(
+        self,
+        filters: Mapping[str, Any] | None = None,
+        *,
+        limit: int | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return records matching exact metadata filters."""
+        if limit is not None and (not isinstance(limit, int) or limit <= 0):
+            raise ValueError("limit must be a positive integer when provided")
+        kwargs: dict[str, Any] = {"include": ["documents", "metadatas"]}
+        where = _metadata_where(filters)
+        if where is not None:
+            kwargs["where"] = where
+        if limit is not None:
+            kwargs["limit"] = limit
+
+        result = self._collection.get(**kwargs)
+        result_ids = result.get("ids") or []
+        documents = result.get("documents") or []
+        metadatas = result.get("metadatas") or []
+        records: list[dict[str, Any]] = []
+        for index, item_id in enumerate(result_ids):
+            record: dict[str, Any] = {"id": str(item_id)}
+            if index < len(documents):
+                record["text"] = documents[index]
+            if index < len(metadatas) and isinstance(metadatas[index], Mapping):
+                record["metadata"] = dict(metadatas[index])
+            records.append(record)
+        return records
+
+    def get_collection_stats(self) -> dict[str, Any]:
+        """Return lightweight collection stats for dashboard overview pages."""
+        return {
+            "provider": "chroma",
+            "collection_name": self.collection_name,
+            "persist_directory": self.persist_directory,
+            "distance": self.distance,
+            "record_count": int(self._collection.count()),
+        }
+
+    def delete_by_metadata(self, filters: Mapping[str, Any]) -> int:
+        """Delete records matching exact metadata filters and return count."""
+        if not isinstance(filters, Mapping) or not filters:
+            raise ValueError("filters must be a non-empty mapping")
+        where = _metadata_where(filters)
+        matches = self._collection.get(where=where)
+        ids = [str(item_id) for item_id in matches.get("ids", [])]
+        if not ids:
+            return 0
+        self._collection.delete(ids=ids)
+        return len(ids)
+
     @staticmethod
     def _first_row(values: Any) -> list[Any]:
         if isinstance(values, list) and values:
@@ -126,6 +178,15 @@ class ChromaStore(BaseVectorStore):
             raise RuntimeError(
                 "chromadb is required for ChromaStore; install project dependencies first"
             ) from exc
+
+
+def _metadata_where(filters: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not filters:
+        return None
+    items = [{str(key): value} for key, value in filters.items()]
+    if len(items) == 1:
+        return items[0]
+    return {"$and": items}
 
 
 __all__ = ["ChromaStore"]

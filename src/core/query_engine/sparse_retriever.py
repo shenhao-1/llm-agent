@@ -74,7 +74,7 @@ class SparseRetriever:
 
         if trace is not None:
             trace.record_stage(
-                "retrieve",
+                "sparse_retrieval",
                 method="sparse_retriever",
                 details={
                     "keyword_count": len(keywords),

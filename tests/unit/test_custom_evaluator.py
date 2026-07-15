@@ -105,10 +105,70 @@ def test_custom_evaluator_returns_zero_when_no_match_found() -> None:
 
 
 @pytest.mark.unit
+def test_custom_evaluator_handles_empty_retrieved_ids() -> None:
+    metrics = CustomEvaluator().evaluate(
+        query="find evaluator docs",
+        retrieved_ids=[],
+        golden_ids=["doc-1"],
+    )
+
+    assert metrics == {
+        "hit_rate": 0.0,
+        "mrr": 0.0,
+        "precision_at_k": 0.0,
+        "recall_at_k": 0.0,
+    }
+
+
+@pytest.mark.unit
+def test_custom_evaluator_deduplicates_matches_for_precision_and_recall() -> None:
+    metrics = CustomEvaluator().evaluate(
+        query="find evaluator docs",
+        retrieved_ids=["doc-1", "doc-1", "doc-2"],
+        golden_ids=["doc-1", "doc-2"],
+    )
+
+    assert metrics["hit_rate"] == 1.0
+    assert metrics["mrr"] == 1.0
+    assert metrics["precision_at_k"] == pytest.approx(2 / 3)
+    assert metrics["recall_at_k"] == 1.0
+
+
+@pytest.mark.unit
 def test_custom_evaluator_rejects_empty_golden_ids() -> None:
     with pytest.raises(ValueError, match="golden_ids must be a non-empty list"):
         CustomEvaluator().evaluate(
             query="find evaluator docs",
             retrieved_ids=["doc-1"],
             golden_ids=[],
+        )
+
+
+@pytest.mark.unit
+def test_custom_evaluator_rejects_empty_query() -> None:
+    with pytest.raises(ValueError, match="query must be a non-empty string"):
+        CustomEvaluator().evaluate(
+            query=" ",
+            retrieved_ids=["doc-1"],
+            golden_ids=["doc-1"],
+        )
+
+
+@pytest.mark.unit
+def test_custom_evaluator_rejects_invalid_retrieved_id() -> None:
+    with pytest.raises(ValueError, match=r"retrieved_ids\[1\]"):
+        CustomEvaluator().evaluate(
+            query="find evaluator docs",
+            retrieved_ids=["doc-1", ""],
+            golden_ids=["doc-1"],
+        )
+
+
+@pytest.mark.unit
+def test_custom_evaluator_rejects_non_list_golden_ids() -> None:
+    with pytest.raises(ValueError, match="golden_ids must be a list"):
+        CustomEvaluator().evaluate(
+            query="find evaluator docs",
+            retrieved_ids=["doc-1"],
+            golden_ids="doc-1",  # type: ignore[arg-type]
         )

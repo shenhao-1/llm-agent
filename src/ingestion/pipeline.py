@@ -135,10 +135,20 @@ class IngestionPipeline:
                     collection=collection,
                     skipped=True,
                 )
-                self._record_stage(trace, "integrity", {"skipped": True})
+                self._record_stage(
+                    trace,
+                    "integrity",
+                    {"skipped": True},
+                    method=_component_name(self.integrity_checker),
+                )
                 self._progress(progress, "integrity")
                 return result
-            self._record_stage(trace, "integrity", {"skipped": False})
+            self._record_stage(
+                trace,
+                "integrity",
+                {"skipped": False},
+                method=_component_name(self.integrity_checker),
+            )
             self._progress(progress, "integrity")
 
             current_stage = "load"
@@ -147,13 +157,21 @@ class IngestionPipeline:
 
             current_stage = "split"
             chunks = self.chunker.split_document(document, trace=trace)
-            self._record_stage(trace, "split", {"chunk_count": len(chunks)})
+            self._record_stage(
+                trace,
+                "split",
+                {"chunk_count": len(chunks)},
+                method=_component_name(getattr(self.chunker, "splitter", self.chunker)),
+            )
             self._progress(progress, "split")
 
             current_stage = "transform"
             transformed_chunks = self._run_transforms(chunks, trace)
             self._record_stage(
-                trace, "transform", {"chunk_count": len(transformed_chunks)}
+                trace,
+                "transform",
+                {"chunk_count": len(transformed_chunks)},
+                method="ingestion_pipeline",
             )
             self._progress(progress, "transform")
 
@@ -161,18 +179,25 @@ class IngestionPipeline:
             batch_result = self.batch_processor.process(transformed_chunks, trace=trace)
             self._record_stage(
                 trace,
-                "encode",
+                "embed",
                 {
                     "chunk_count": len(transformed_chunks),
                     "dense_count": len(batch_result.dense_records),
+                    "batch_count": batch_result.batch_count,
                 },
+                method=_component_name(self.batch_processor),
             )
             self._progress(progress, "encode")
 
             current_stage = "store_bm25"
             self.bm25_indexer.build(batch_result.sparse_result)
             bm25_path = self.bm25_indexer.index_path
-            self._record_stage(trace, "store_bm25", {"index_path": str(bm25_path)})
+            self._record_stage(
+                trace,
+                "store_bm25",
+                {"index_path": str(bm25_path)},
+                method=_component_name(self.bm25_indexer),
+            )
             self._progress(progress, "store_bm25")
 
             current_stage = "store_vectors"
@@ -180,14 +205,20 @@ class IngestionPipeline:
                 batch_result.dense_records, trace=trace
             )
             self._record_stage(
-                trace, "store_vectors", {"record_count": vector_result.count}
+                trace,
+                "upsert",
+                {"record_count": vector_result.count},
+                method=_component_name(self.vector_upserter),
             )
             self._progress(progress, "store_vectors")
 
             current_stage = "store_images"
             image_records = self._store_images(document, collection, trace)
             self._record_stage(
-                trace, "store_images", {"image_count": len(image_records)}
+                trace,
+                "store_images",
+                {"image_count": len(image_records)},
+                method=_component_name(self.image_storage),
             )
             self._progress(progress, "store_images")
 
@@ -243,6 +274,7 @@ class IngestionPipeline:
                 "text_length": len(document.text),
                 "image_count": len(document.metadata.get("images", [])),
             },
+            method=_component_name(loader),
         )
         return document
 
@@ -306,9 +338,15 @@ class IngestionPipeline:
         trace: "TraceContext | None",
         stage: str,
         details: dict[str, Any],
+        *,
+        method: str = "ingestion_pipeline",
     ) -> None:
         if trace is not None:
-            trace.record_stage(stage, method="ingestion_pipeline", details=details)
+            trace.record_stage(stage, method=method, details=details)
+
+
+def _component_name(component: Any) -> str:
+    return component.__class__.__name__
 
 def _settings_with_defaults(settings: "Settings | Mapping[str, Any]") -> dict[str, Any]:
     if hasattr(settings, "llm"):

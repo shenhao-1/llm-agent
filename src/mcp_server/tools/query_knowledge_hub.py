@@ -17,11 +17,13 @@ from core.query_engine import (
 )
 from core.response import ResponseBuilder
 from core.settings import load_settings
+from core.trace import TraceContext
 from core.types import RetrievalResult
 from ingestion.storage import BM25Indexer
 from libs.embedding import BaseEmbedding
 from libs.vector_store import BaseVectorStore
 from mcp_server.protocol_handler import ToolDefinition
+from observability.logger import DEFAULT_TRACE_LOG_PATH, write_trace
 
 
 DEFAULT_SETTINGS = Path("config/settings.yaml")
@@ -38,25 +40,52 @@ def query_knowledge_hub(
     response_builder: ResponseBuilder | None = None,
     settings_path: str | Path = DEFAULT_SETTINGS,
     data_dir: str | Path = DEFAULT_DATA_DIR,
+    trace: TraceContext | None = None,
+    trace_log_path: str | Path | None = DEFAULT_TRACE_LOG_PATH,
 ) -> dict[str, Any]:
     """Run hybrid retrieval, optional rerank, and return an MCP tool result."""
     _validate_query_args(query, top_k, collection)
     builder = response_builder or ResponseBuilder()
+    owns_trace = trace is None
+    current_trace = trace or TraceContext(trace_type="query")
+    results: list[RetrievalResult] = []
+    status = "success"
+    error: str | None = None
 
     try:
         searcher = search or _build_default_search(settings_path, data_dir)
         filters = {"collection": collection} if collection else None
-        results = searcher.search(query, top_k=top_k, filters=filters)
+        results = searcher.search(query, top_k=top_k, filters=filters, trace=current_trace)
         ranker = reranker
         if ranker is None:
             ranker = Reranker(settings=load_settings(settings_path))
-        results = ranker.rerank(query, results)
+        results = ranker.rerank(query, results, trace=current_trace)
     except FileNotFoundError:
+        status = "empty"
         results = []
     except RuntimeError as exc:
         if "first" not in str(exc).lower() and "not found" not in str(exc).lower():
+            status = "failed"
+            error = str(exc)
             raise
+        status = "empty"
         results = []
+    finally:
+        current_trace.finish()
+        if owns_trace and trace_log_path is not None:
+            payload = current_trace.to_dict()
+            payload.update(
+                {
+                    "query": query,
+                    "collection": collection,
+                    "top_k": top_k,
+                    "result_count": len(results),
+                    "status": status,
+                }
+            )
+            if error is not None:
+                payload["error"] = error
+            write_trace(payload, trace_log_path)
 
     return builder.build(results, query)
 

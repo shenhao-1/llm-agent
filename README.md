@@ -9,6 +9,10 @@
 - [项目概述](#-项目概述)
 - [分支说明](#-分支说明)
 - [快速开始](#-快速开始)
+- [配置说明](#-配置说明)
+- [MCP 配置示例](#-mcp-配置示例)
+- [Dashboard 使用指南](#-dashboard-使用指南)
+- [运行测试](#-运行测试)
 - [谁适合用这个项目 & 怎么用](#-谁适合用这个项目--怎么用)
 - [简历参考](#-简历参考)
 - [常见问题](#-常见问题)
@@ -101,14 +105,87 @@
 
 ## 🚀 快速开始
 
-### 1. 克隆项目
+下面是不用任何 Skill、只靠命令行跑通项目的最短路径。Windows PowerShell 示例为主，macOS / Linux 把虚拟环境激活命令换成 `source .venv/bin/activate` 即可。
 
-```bash
+### 1. 克隆并进入项目
+
+```powershell
 git clone <repo-url>
-cd Modular-RAG-MCP-Server
+cd MODULAR-RAG-MCP-SERVER-clean-start
 ```
 
-### 2. 一键配置（Setup Skill）
+### 2. 创建环境并安装依赖
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -U pip
+python -m pip install -e ".[dev]"
+```
+
+如果 PowerShell 禁止执行激活脚本，可以直接用 `.venv\Scripts\python.exe` 替代后续命令里的 `python`。
+
+### 3. 配置 API Key
+
+默认配置文件是 `config/settings.yaml`。OpenAI provider 会优先读取配置中的 `api_key`，未配置时读取环境变量：
+
+```powershell
+$env:OPENAI_API_KEY="sk-your-key"
+```
+
+当前离线 ingest / query 脚本内置了本地 deterministic embedding 路径，用于测试和演示；如果你启用真实 OpenAI / Azure / Ollama provider，请确保 `settings.yaml` 中对应字段完整。
+
+### 4. 首次摄取文档
+
+```powershell
+python scripts\ingest.py --path tests\fixtures\sample_documents --collection test
+```
+
+常用参数：
+
+- `--path`：PDF 文件或目录。
+- `--collection`：写入的集合名，后续 query / Dashboard 可按 collection 过滤。
+- `--force`：忽略文件完整性记录，强制重建索引。
+- `--data-dir`：数据目录，默认 `data`。
+
+摄取后会生成：
+
+- `data/db/bm25/index.json`：BM25 稀疏索引。
+- `data/db/vectors.json` 或 Chroma 持久化目录：向量检索数据。
+- `data/db/ingestion_history.db`：文件完整性和幂等记录。
+- `data/images/` 与 `data/db/image_index.db`：PDF 图片文件与索引。
+
+### 5. 查询本地知识库
+
+```powershell
+python scripts\query.py --query "测试查询" --collection test --verbose
+```
+
+常用参数：
+
+- `--top-k`：返回结果数量。
+- `--collection`：按集合过滤。
+- `--doc-type pdf`：按文档类型过滤。
+- `--no-rerank`：跳过 rerank，便于定位召回问题。
+- `--verbose`：打印 query trace 阶段信息。
+
+### 6. 启动 Dashboard
+
+```powershell
+python scripts\start_dashboard.py --port 8501 --headless
+```
+
+浏览器打开 `http://127.0.0.1:8501`。
+
+### 7. 运行评估
+
+```powershell
+python scripts\evaluate.py --test-set tests\fixtures\golden_test_set.json --json
+```
+
+评估会读取 golden test set，跑 retrieval，并输出 `hit_rate`、`mrr`、`recall_at_k` 等指标。
+
+### 可选：一键配置（Setup Skill）
 
 本项目提供了 **Setup Skill** 一键完成所有环境配置，包括：Provider 选择 → API Key 配置 → 依赖安装 → 配置文件生成 → Dashboard 启动。
 
@@ -121,6 +198,205 @@ setup
 Agent 会自动引导你完成全部配置流程。
 
 > 💡 如果不熟悉 Skill 的使用方式，请观看配套笔记中的 **Setup Skill 使用讲解视频**。
+
+---
+
+## ⚙️ 配置说明
+
+主配置文件：`config/settings.yaml`。
+
+| 配置段 | 作用 | 常见字段 |
+|------|------|------|
+| `llm` | 文本 LLM 后端配置，用于 LLM rerank、chunk refinement、metadata enrichment 等可选能力 | `provider`、`model`、`api_key`、`base_url`、`temperature`、`timeout` |
+| `embedding` | 向量化后端配置 | `provider`、`model`、`api_key`、`base_url`、`dimensions` |
+| `vector_store` | 向量存储配置 | `provider`、`persist_directory` |
+| `retrieval` | 查询召回配置 | `strategy`、`top_k`、`bm25_index_dir` |
+| `rerank` | 重排配置 | `provider`、`top_n`、`timeout_seconds` |
+| `evaluation` | 评估后端配置 | `provider` 或 `backends`、`prefix_metrics` |
+| `observability` | 日志与 trace 配置 | `level`、`traces_path` |
+| `ingestion` | 摄取阶段开关和批处理配置 | `chunk_refiner`、`metadata_enricher`、`image_captioner`、`batch_processor` |
+
+最小可运行配置示例：
+
+```yaml
+llm:
+  provider: openai
+  model: gpt-4o-mini
+embedding:
+  provider: openai
+  model: text-embedding-3-small
+vector_store:
+  provider: chroma
+  persist_directory: data/db/chroma
+retrieval:
+  strategy: hybrid
+  top_k: 5
+rerank:
+  provider: none
+evaluation:
+  provider: custom
+observability:
+  level: INFO
+  traces_path: logs/traces.jsonl
+ingestion:
+  chunk_refiner:
+    use_llm: false
+    prompt_path: config/prompts/chunk_refinement.txt
+  metadata_enricher:
+    use_llm: false
+  image_captioner:
+    enabled: false
+    prompt_path: config/prompts/image_captioning.txt
+  batch_processor:
+    batch_size: 32
+```
+
+Provider 说明：
+
+- `openai`：读取 `OPENAI_API_KEY` 或配置中的 `api_key`。
+- `azure`：用于 Azure OpenAI / Azure Vision，需补齐 endpoint、deployment、api version 等字段。
+- `ollama`：适合本地模型，需保证 Ollama 服务已启动。
+- `deepseek`：OpenAI-compatible LLM provider，可按兼容 API 方式配置 `base_url` 和 `api_key`。
+
+---
+
+## 🔌 MCP 配置示例
+
+MCP Server 入口：
+
+```powershell
+python -m mcp_server.server
+```
+
+推荐在 MCP Client 配置中显式设置项目目录和 `PYTHONPATH`，避免 client 从错误目录启动导致 import 或数据路径问题。
+
+### GitHub Copilot / VS Code `mcp.json`
+
+可放在项目 `.vscode/mcp.json` 或用户级 MCP 配置中：
+
+```json
+{
+  "servers": {
+    "modular-rag": {
+      "type": "stdio",
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "D:/bianyi/AI/MODULAR-RAG-MCP-SERVER-clean-start",
+      "env": {
+        "PYTHONPATH": "D:/bianyi/AI/MODULAR-RAG-MCP-SERVER-clean-start/src",
+        "OPENAI_API_KEY": "${env:OPENAI_API_KEY}"
+      }
+    }
+  }
+}
+```
+
+### Claude Desktop `claude_desktop_config.json`
+
+```json
+{
+  "mcpServers": {
+    "modular-rag": {
+      "command": "python",
+      "args": ["-m", "mcp_server.server"],
+      "cwd": "D:/bianyi/AI/MODULAR-RAG-MCP-SERVER-clean-start",
+      "env": {
+        "PYTHONPATH": "D:/bianyi/AI/MODULAR-RAG-MCP-SERVER-clean-start/src",
+        "OPENAI_API_KEY": "sk-your-key"
+      }
+    }
+  }
+}
+```
+
+可用工具：
+
+- `query_knowledge_hub`：主查询入口，返回 Markdown、structured citations 和可选图片内容。
+- `list_collections`：列出本地文档集合。
+- `get_document_summary`：按文档 ID 返回元数据摘要。
+
+连接验证：
+
+```powershell
+python -m pytest -q tests\e2e\test_mcp_client.py
+```
+
+---
+
+## 📊 Dashboard 使用指南
+
+启动命令：
+
+```powershell
+python scripts\start_dashboard.py --port 8501 --address 127.0.0.1 --headless
+```
+
+页面说明：
+
+| 页面 | 功能 |
+|------|------|
+| System Overview | 查看当前 `settings.yaml` 配置摘要、provider、向量库状态 |
+| Data Browser | 浏览 collection、document、chunk、图片索引和元数据 |
+| Ingestion Manager | 上传 PDF、执行摄取、查看已有文档并删除 |
+| Ingestion Traces | 查看摄取链路历史、阶段耗时和处理统计 |
+| Query Traces | 查看查询链路历史、Dense/Sparse/Fusion/Rerank 对比 |
+| Evaluation Panel | 选择评估后端和 golden set，运行评估并查看历史趋势 |
+
+截图示例建议：
+
+- 首页：截取 Components、Vector Records、Trace Level 三个指标卡。
+- Data Browser：截取文档列表和某个 chunk 展开详情。
+- Query Traces：截取 Dense/Sparse 对比表和阶段耗时图。
+- Evaluation Panel：截取 `hit_rate`、`mrr` 指标和历史趋势图。
+
+Dashboard 冒烟测试：
+
+```powershell
+python -m pytest -q tests\e2e\test_dashboard_smoke.py
+```
+
+---
+
+## 🧪 运行测试
+
+分层运行，优先小范围验证：
+
+```powershell
+# 单元测试
+python -m pytest -q tests\unit
+
+# 集成测试
+python -m pytest -q tests\integration
+
+# E2E 测试
+python -m pytest -q tests\e2e
+
+# 全量测试
+python -m pytest -q
+```
+
+推荐回归命令：
+
+```powershell
+# MCP client 侧调用模拟
+python -m pytest -q tests\e2e\test_mcp_client.py
+
+# Dashboard 页面冒烟
+python -m pytest -q tests\e2e\test_dashboard_smoke.py
+
+# Recall golden set 回归
+python -m pytest -q tests\e2e\test_recall.py
+
+# 评估脚本与 EvalRunner
+python -m pytest -q tests\unit\test_eval_runner.py tests\unit\test_evaluate_script.py
+```
+
+真实 LLM 调用默认跳过。如需运行真实 provider 测试，设置：
+
+```powershell
+$env:RUN_REAL_LLM_TESTS="1"
+python -m pytest -q tests\integration\test_chunk_refiner_llm.py
+```
 
 ---
 
@@ -323,6 +599,44 @@ Skill 采用 **"写作原则 + 项目亮点 + 用户画像 = 定制化简历"** 
 ---
 
 ## ❓ 常见问题
+
+### API Key 配置后仍然报 `config missing api_key`
+
+先确认当前 shell 中能读到环境变量：
+
+```powershell
+echo $env:OPENAI_API_KEY
+```
+
+如果 MCP Client 或 Dashboard 是从另一个进程启动的，它可能读不到你当前终端的环境变量。解决方式：
+
+- 在 MCP 配置的 `env` 字段中显式写入 `OPENAI_API_KEY`。
+- 或在 `config/settings.yaml` 的 `llm` / `embedding` 段中写入 `api_key`。
+- 如果使用 Azure provider，确认配置的是 Azure 的 endpoint、deployment、api version 和 key，而不是 OpenAI 的默认字段。
+
+### 依赖安装失败或 Streamlit / ChromaDB / PyMuPDF 缺失
+
+优先重新安装项目依赖：
+
+```powershell
+python -m pip install -e ".[dev]" --default-timeout 120
+```
+
+如果 Windows 报权限错误：
+
+- 用管理员 PowerShell 重试。
+- 或创建干净 `.venv` 后使用 `.venv\Scripts\python.exe -m pip install -e ".[dev]"`。
+- 如果下载慢，保留 `--default-timeout 120` 或配置你自己的 pip 镜像。
+
+### MCP Client 连接不上或工具列表为空
+
+按下面顺序排查：
+
+1. 在项目根目录直接运行 `python -m mcp_server.server`，确认没有 import 报错。
+2. 检查 MCP 配置里的 `cwd` 是否指向项目根目录。
+3. 检查 `PYTHONPATH` 是否包含 `项目根目录/src`。
+4. 先跑 `python -m pytest -q tests\e2e\test_mcp_client.py`，确认 stdio JSON-RPC 链路可用。
+5. 如果 `query_knowledge_hub` 返回无结果，先执行 ingest，确认 `data/db/bm25/index.json` 和 `data/db/vectors.json` 存在。
 
 ### 1. 如何切换 Provider（比如换成 Qwen / DeepSeek / Ollama）？
 

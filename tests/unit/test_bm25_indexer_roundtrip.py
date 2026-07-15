@@ -89,6 +89,33 @@ def test_incremental_update_adds_and_replaces_records(tmp_path) -> None:
     assert loaded.doc_count == 2
 
 
+def test_remove_document_deletes_matching_source_and_recomputes_index(tmp_path) -> None:
+    indexer = BM25Indexer(tmp_path).build(
+        SparseEncoder().encode(
+            [
+                _chunk("alpha one", "chunk-a", 0),
+                _chunk("alpha two", "chunk-b", 1),
+                Chunk(
+                    id="chunk-c",
+                    text="beta notes",
+                    metadata={
+                        "source_path": "docs/other.md",
+                        "collection": "notes",
+                        "chunk_index": 0,
+                    },
+                ),
+            ]
+        )
+    )
+
+    assert indexer.remove_document("docs/sample.md") == 2
+
+    loaded = BM25Indexer(tmp_path).load()
+    assert loaded.query("alpha") == []
+    assert [item["chunk_id"] for item in loaded.query("beta")] == ["chunk-c"]
+    assert loaded.doc_count == 1
+
+
 def test_invalid_inputs_are_rejected(tmp_path) -> None:
     indexer = BM25Indexer(tmp_path)
 

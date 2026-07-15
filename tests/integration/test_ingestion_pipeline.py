@@ -83,7 +83,7 @@ class FailingLoader:
 def test_pipeline_ingests_simple_pdf_to_bm25_and_vector_store(tmp_path: Path) -> None:
     pdf_path = tmp_path / "simple.pdf"
     _write_text_pdf(pdf_path, "Simple retrieval document about BM25 and dense vectors.")
-    trace = TraceContext()
+    trace = TraceContext(trace_type="ingestion")
     progress: list[tuple[str, int, int]] = []
     pipeline, vector_store = _pipeline(
         tmp_path,
@@ -111,9 +111,19 @@ def test_pipeline_ingests_simple_pdf_to_bm25_and_vector_store(tmp_path: Path) ->
         ("store_vectors", 7, 8),
         ("store_images", 8, 8),
     ]
-    assert {"integrity", "load", "split", "transform", "encode"}.issubset(
-        {stage["name"] for stage in trace.stages}
-    )
+    stage_names = {stage["name"] for stage in trace.stages}
+    expected_stages = {"load", "split", "transform", "embed", "upsert"}
+    assert expected_stages.issubset(stage_names)
+    trace_payload = trace.to_dict()
+    assert trace_payload["trace_type"] == "ingestion"
+    stages_by_name = {stage["name"]: stage for stage in trace.stages}
+    for stage_name in expected_stages:
+        stage = stages_by_name[stage_name]
+        assert isinstance(stage["elapsed_ms"], float)
+        assert stage["elapsed_ms"] >= 0.0
+        assert isinstance(stage["method"], str)
+        assert stage["method"]
+        assert isinstance(stage.get("details"), dict)
 
 
 @pytest.mark.integration

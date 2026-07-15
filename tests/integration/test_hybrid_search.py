@@ -6,9 +6,21 @@ from typing import Any, Mapping
 
 import pytest
 
-from core import RetrievalResult
-from core.query_engine import HybridSearch, QueryProcessor, RRFFusion
+from core import Chunk, RetrievalResult
+from core.query_engine import (
+    DenseRetriever,
+    HybridSearch,
+    QueryProcessor,
+    Reranker,
+    RRFFusion,
+    SparseRetriever,
+)
 from core.trace import TraceContext
+from ingestion.embedding import SparseEncoder
+from ingestion.storage import BM25Indexer
+from libs.embedding import BaseEmbedding
+from libs.reranker import BaseReranker
+from libs.vector_store import BaseVectorStore
 
 
 class FakeDenseRetriever:
@@ -52,6 +64,92 @@ class FakeSparseRetriever:
         if self.fail:
             raise RuntimeError("sparse route failed")
         return self.results[:top_k]
+
+
+class StaticEmbedding(BaseEmbedding):
+    def __init__(self, vector: list[float]) -> None:
+        super().__init__({})
+        self.vector = [float(value) for value in vector]
+
+    def embed(self, texts: list[str], trace: Any | None = None) -> list[list[float]]:
+        self.validate_texts(texts)
+        return [list(self.vector) for _ in texts]
+
+
+class InMemoryVectorStore(BaseVectorStore):
+    def __init__(self, records: list[dict[str, Any]]) -> None:
+        super().__init__({})
+        self.records = [dict(record) for record in records]
+
+    def upsert(
+        self,
+        records: list[Mapping[str, Any]],
+        trace: Any | None = None,
+    ) -> None:
+        self.validate_records(records)
+
+    def query(
+        self,
+        vector: list[float],
+        top_k: int,
+        filters: Mapping[str, Any] | None = None,
+        trace: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        self.validate_query_args(vector, top_k, filters)
+        filtered = [
+            record
+            for record in self.records
+            if _metadata_matches(record.get("metadata", {}), filters)
+        ]
+        ranked = sorted(
+            filtered,
+            key=lambda record: (
+                -_similarity(vector, record.get("vector", [])),
+                str(record.get("id", "")),
+            ),
+        )
+        return [
+            {
+                "id": str(record["id"]),
+                "text": str(record.get("text", "")),
+                "metadata": dict(record.get("metadata", {})),
+                "score": _similarity(vector, record.get("vector", [])),
+            }
+            for record in ranked[:top_k]
+        ]
+
+    def get_by_ids(
+        self,
+        ids: list[str],
+        trace: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        self.validate_ids(ids)
+        records_by_id = {str(record["id"]): record for record in self.records}
+        return [
+            {
+                "id": item_id,
+                "text": str(records_by_id[item_id].get("text", "")),
+                "metadata": dict(records_by_id[item_id].get("metadata", {})),
+                "vector": list(records_by_id[item_id].get("vector", [])),
+            }
+            for item_id in ids
+            if item_id in records_by_id
+        ]
+
+
+class PassthroughRerankerBackend(BaseReranker):
+    def __init__(self) -> None:
+        super().__init__({})
+
+    def rerank(
+        self,
+        query: str,
+        candidates: list[Mapping[str, Any]],
+        trace: Any | None = None,
+    ) -> list[dict[str, Any]]:
+        self.validate_query(query)
+        self.validate_candidates(candidates)
+        return [dict(candidate) for candidate in candidates]
 
 
 def test_hybrid_search_returns_fused_top_k_with_text_and_metadata() -> None:
@@ -129,6 +227,75 @@ def test_hybrid_search_degrades_to_sparse_when_dense_route_fails() -> None:
     assert "dense" in trace.stages[-1]["details"]["errors"]
 
 
+def test_query_trace_contains_processing_retrieval_fusion_and_rerank_stages(
+    tmp_path,
+) -> None:
+    chunks = [
+        _chunk("hybrid retrieval trace pipeline", "chunk-1", 0),
+        _chunk("hybrid retrieval reference notes", "chunk-2", 1),
+    ]
+    bm25 = BM25Indexer(tmp_path).build(SparseEncoder().encode(chunks), persist=False)
+    store = InMemoryVectorStore(
+        [
+            {
+                "id": "chunk-1",
+                "text": chunks[0].text,
+                "vector": [1.0, 0.0, 0.0],
+                "metadata": dict(chunks[0].metadata),
+            },
+            {
+                "id": "chunk-2",
+                "text": chunks[1].text,
+                "vector": [0.0, 1.0, 0.0],
+                "metadata": dict(chunks[1].metadata),
+            },
+        ]
+    )
+    trace = TraceContext(trace_type="query")
+
+    search = HybridSearch(
+        query_processor=QueryProcessor(),
+        dense_retriever=DenseRetriever(
+            embedding_client=StaticEmbedding([1.0, 0.0, 0.0]),
+            vector_store=store,
+        ),
+        sparse_retriever=SparseRetriever(
+            bm25_indexer=bm25,
+            vector_store=store,
+        ),
+        fusion=RRFFusion(k=20),
+    )
+    results = search.search("hybrid retrieval trace", top_k=2, trace=trace)
+    reranked = Reranker(backend=PassthroughRerankerBackend()).rerank(
+        "hybrid retrieval trace",
+        results,
+        trace=trace,
+    )
+
+    assert [result.chunk_id for result in reranked] == ["chunk-1", "chunk-2"]
+    stage_names = {stage["name"] for stage in trace.stages}
+    expected = {
+        "query_processing",
+        "dense_retrieval",
+        "sparse_retrieval",
+        "fusion",
+        "rerank",
+    }
+    assert expected.issubset(stage_names)
+
+    trace_by_name = {stage["name"]: stage for stage in trace.stages}
+    for name in expected:
+        stage = trace_by_name[name]
+        assert isinstance(stage["elapsed_ms"], float)
+        assert stage["elapsed_ms"] >= 0.0
+        assert isinstance(stage["method"], str)
+        assert stage["method"]
+
+    payload = trace.to_dict()
+    assert payload["trace_type"] == "query"
+    assert payload["trace_id"] == trace.trace_id
+
+
 def test_hybrid_search_degrades_to_dense_when_sparse_route_fails() -> None:
     dense = FakeDenseRetriever([_result("d", "dense only", {"collection": "docs"})])
     sparse = FakeSparseRetriever(fail=True)
@@ -182,3 +349,37 @@ def _result(
         text=text,
         metadata=metadata,
     )
+
+
+def _chunk(text: str, chunk_id: str, chunk_index: int) -> Chunk:
+    return Chunk(
+        id=chunk_id,
+        text=text,
+        metadata={"source_path": "docs/sample.md", "chunk_index": chunk_index},
+        start_offset=0,
+        end_offset=len(text),
+        source_ref="doc-1",
+    )
+
+
+def _similarity(query_vector: list[float], candidate_vector: list[float]) -> float:
+    if not candidate_vector or len(query_vector) != len(candidate_vector):
+        return 0.0
+    distance = sum(
+        (float(left) - float(right)) ** 2 for left, right in zip(query_vector, candidate_vector)
+    ) ** 0.5
+    return 1.0 / (1.0 + distance)
+
+
+def _metadata_matches(
+    metadata: Any,
+    filters: Mapping[str, Any] | None,
+) -> bool:
+    if not filters:
+        return True
+    if not isinstance(metadata, Mapping):
+        return False
+    for key, expected in filters.items():
+        if key not in metadata or metadata[key] != expected:
+            return False
+    return True

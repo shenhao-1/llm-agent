@@ -88,6 +88,63 @@ def test_list_by_collection_returns_deterministic_batch(tmp_path: Path) -> None:
     assert all(Path(record.file_path).exists() for record in records)
 
 
+def test_list_and_delete_by_document_hash(tmp_path: Path) -> None:
+    storage = _storage(tmp_path)
+    first = storage.save_bytes(
+        image_id="img-a",
+        data=b"a",
+        collection="docs",
+        doc_hash="doc-1",
+    )
+    storage.save_bytes(
+        image_id="img-b",
+        data=b"b",
+        collection="notes",
+        doc_hash="doc-1",
+    )
+
+    assert storage.list_by_document("doc-1", "docs") == [first]
+    assert storage.delete_by_document("doc-1", "docs") == 1
+    assert not Path(first.file_path).exists()
+    assert storage.list_by_document("doc-1", "docs") == []
+    assert [record.image_id for record in storage.list_by_document("doc-1")] == ["img-b"]
+
+
+def test_list_images_supports_collection_and_document_filters(tmp_path: Path) -> None:
+    storage = _storage(tmp_path)
+    storage.save_bytes(
+        image_id="img-a",
+        data=b"a",
+        collection="docs",
+        doc_hash="doc-1",
+    )
+    storage.save_bytes(
+        image_id="img-b",
+        data=b"b",
+        collection="docs",
+        doc_hash="doc-2",
+    )
+    storage.save_bytes(
+        image_id="img-c",
+        data=b"c",
+        collection="notes",
+        doc_hash="doc-1",
+    )
+
+    assert [record.image_id for record in storage.list_images(collection="docs")] == [
+        "img-a",
+        "img-b",
+    ]
+    assert [record.image_id for record in storage.list_images(doc_hash="doc-1")] == [
+        "img-a",
+        "img-c",
+    ]
+    assert [
+        record.image_id
+        for record in storage.list_images(collection="docs", doc_hash="doc-1")
+    ] == ["img-a"]
+
+
 def test_sqlite_uses_wal_mode_and_required_indexes(tmp_path: Path) -> None:
     storage = _storage(tmp_path)
 

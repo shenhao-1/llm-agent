@@ -74,12 +74,12 @@ def test_processed_query_is_json_serializable() -> None:
     assert json.loads(json.dumps(payload)) == payload
 
 
-def test_trace_records_query_process_stage() -> None:
+def test_trace_records_query_processing_stage() -> None:
     trace = TraceContext()
 
     result = QueryProcessor().process("collection:docs BM25 search", trace=trace)
 
-    assert trace.stages[-1]["name"] == "query_process"
+    assert trace.stages[-1]["name"] == "query_processing"
     assert trace.stages[-1]["method"] == "query_processor"
     assert trace.stages[-1]["details"] == {
         "keyword_count": len(result.keywords),
