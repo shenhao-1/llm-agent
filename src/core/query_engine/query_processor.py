@@ -10,7 +10,8 @@ if TYPE_CHECKING:
     from core.trace.trace_context import TraceContext
 
 
-TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u9fff]+")
+HAN_RE = re.compile(r"^[\u3400-\u9fff]+$")
 FILTER_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*):(\"[^\"]+\"|'[^']+'|[^\s]+)")
 
 DEFAULT_FILTER_FIELDS = {
@@ -151,15 +152,20 @@ class QueryProcessor:
         keywords: list[str] = []
         seen: set[str] = set()
         for token in TOKEN_RE.findall(text):
-            normalized = token.lower()
-            if len(normalized) < self.min_keyword_length:
-                continue
-            if not ignore_stopwords and normalized in self.stopwords:
-                continue
-            if normalized in seen:
-                continue
-            seen.add(normalized)
-            keywords.append(normalized)
+            candidates = (
+                [token[index:index + 2] for index in range(len(token) - 1)]
+                if HAN_RE.fullmatch(token) and len(token) > 1
+                else [token.lower()]
+            )
+            for normalized in candidates:
+                if len(normalized) < self.min_keyword_length and not HAN_RE.fullmatch(normalized):
+                    continue
+                if not ignore_stopwords and normalized in self.stopwords:
+                    continue
+                if normalized in seen:
+                    continue
+                seen.add(normalized)
+                keywords.append(normalized)
         return keywords
  # 是从query 里面解析过滤条件
     def _extract_filters(self, query: str) -> tuple[dict[str, str], str]:

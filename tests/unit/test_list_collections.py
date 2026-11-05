@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from core.types import Chunk
+from ingestion.embedding import SparseEncoder
+from ingestion.storage import BM25Indexer
 
 from mcp_server.tools.list_collections import (
     handle_list_collections,
@@ -43,6 +46,20 @@ def test_list_collections_missing_directory_returns_empty_result(tmp_path: Path)
     assert result["structuredContent"]["collections"] == []
     assert result["structuredContent"]["collection_names"] == []
     assert "No collections found" in result["content"][0]["text"]
+
+
+def test_list_collections_reads_index_when_documents_directory_is_absent(tmp_path: Path) -> None:
+    chunk = Chunk(
+        id="chunk-1",
+        text="indexed document",
+        metadata={"collection": "research", "source_path": "research/paper.pdf"},
+    )
+    BM25Indexer(tmp_path / "db" / "bm25").build(SparseEncoder().encode([chunk]))
+
+    result = list_collections(tmp_path / "documents")
+
+    assert result["structuredContent"]["collection_names"] == ["research"]
+    assert result["structuredContent"]["collections"][0]["document_count"] == 1
 
 
 def test_list_collections_rejects_file_path(tmp_path: Path) -> None:

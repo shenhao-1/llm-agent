@@ -19,6 +19,11 @@ def test_process_extracts_non_empty_keywords_and_empty_filters_dict() -> None:
     assert result.normalized_query == "How does BM25 hybrid retrieval work?"
 
 
+def test_chinese_query_extracts_searchable_bigrams() -> None:
+    result = QueryProcessor().process("图像检索")
+    assert result.keywords == ["图像", "像检", "检索"]
+
+
 def test_process_removes_stopwords_and_deduplicates_in_order() -> None:
     result = QueryProcessor().process("the RAG and rag pipeline for search")
 

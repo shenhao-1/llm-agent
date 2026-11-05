@@ -139,6 +139,20 @@ class FakeBatchProcessor:
 class FakeBM25Indexer:
     def __init__(self, index_path: Path) -> None:
         self.index_path = index_path
+        self.documents: dict[str, ChunkRecord] = {}
+
+    def remove_document(self, source_path: str, collection: str, *, persist: bool = True) -> int:
+        return 0
+
+    def update(self, sparse_result: SparseEncodingResult):
+        return self.build(sparse_result)
+        self.documents: dict[str, ChunkRecord] = {}
+
+    def remove_document(self, source_path: str, collection: str, *, persist: bool = True) -> int:
+        return 0
+
+    def update(self, sparse_result: SparseEncodingResult):
+        return self.build(sparse_result)
 
     def build(self, sparse_result: SparseEncodingResult):
         self.index_path.parent.mkdir(parents=True, exist_ok=True)
@@ -147,6 +161,10 @@ class FakeBM25Indexer:
 
 
 class FakeVectorUpserter:
+    vector_store = None
+
+    vector_store = None
+
     def upsert(
         self,
         records: list[ChunkRecord],

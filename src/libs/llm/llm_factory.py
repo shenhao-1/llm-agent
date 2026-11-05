@@ -63,7 +63,7 @@ class LLMFactory:
     ) -> BaseVisionLLM:
         """Instantiate a vision-capable provider from settings."""
         cls._ensure_default_providers_registered()
-        llm_config = cls._extract_llm_config(settings)
+        llm_config = cls._extract_vision_config(settings)
         provider_name = str(llm_config.get("provider", "")).strip().lower()
 
         if not provider_name:
@@ -92,6 +92,17 @@ class LLMFactory:
             raise ValueError("Missing or invalid settings section: llm")
 
         return dict(llm)
+
+    @staticmethod
+    def _extract_vision_config(settings: Settings | Mapping[str, Any]) -> dict[str, Any]:
+        if isinstance(settings, Settings):
+            return dict(settings.vision_llm or settings.llm)
+        if not isinstance(settings, Mapping):
+            raise TypeError("settings must be Settings or Mapping")
+        vision = settings.get("vision_llm")
+        if isinstance(vision, Mapping) and vision:
+            return dict(vision)
+        return LLMFactory._extract_llm_config(settings)
 
     @classmethod
     def _ensure_default_providers_registered(cls) -> None:

@@ -9,6 +9,8 @@ import re
 from typing import Any, Mapping
 
 from core.settings import load_settings
+from core.runtime import build_pipeline as build_configured_pipeline
+from core.runtime import runtime_settings
 from core.trace import TraceContext
 from ingestion.document_manager import DeleteResult, DocumentManager
 from ingestion.embedding import BatchProcessor, DenseEncoder, SparseEncoder
@@ -73,25 +75,9 @@ class IngestionService:
         )
         integrity = SQLiteIntegrityChecker(db_dir / "ingestion_history.db")
 
-        pipeline = IngestionPipeline(
-            settings,
-            integrity_checker=integrity,
-            batch_processor=BatchProcessor(
-                settings,
-                dense_encoder=DenseEncoder(
-                    settings,
-                    embedding=LocalDeterministicEmbedding(),
-                ),
-                sparse_encoder=SparseEncoder(),
-            ),
-            bm25_indexer=bm25,
-            vector_upserter=VectorUpserter(
-                vector_store=JsonVectorStore(db_dir / "vectors.json")
-            ),
-            image_storage=image_storage,
-        )
+        pipeline = build_configured_pipeline(settings, data_root)
         manager = DocumentManager(
-            chroma_store=ChromaStore(settings.vector_store),
+            chroma_store=ChromaStore(runtime_settings(settings, data_root)["vector_store"]),
             bm25_indexer=bm25,
             image_storage=image_storage,
             file_integrity=integrity,

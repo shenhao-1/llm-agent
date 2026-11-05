@@ -175,9 +175,9 @@ def _validate_backend(backend: str) -> str:
 
 
 def _default_search_builder(settings: Any, data_dir: Path) -> Any:
-    from scripts.query import _build_search
+    from core.runtime import build_search
 
-    return _build_search(settings, data_dir)
+    return build_search(settings, data_dir)
 
 
 __all__ = [

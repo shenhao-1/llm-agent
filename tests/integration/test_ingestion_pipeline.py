@@ -152,6 +152,28 @@ def test_pipeline_ingests_pdf_with_image_to_image_storage(tmp_path: Path) -> Non
 
 
 @pytest.mark.integration
+def test_pdf_chunk_metadata_tracks_source_pages(tmp_path: Path) -> None:
+    from ingestion.chunking import DocumentChunker
+    from libs.loader import PdfLoader
+
+    path = tmp_path / "two_pages.pdf"
+    import fitz
+    with fitz.open() as pdf:
+        pdf.new_page().insert_text((72, 72), "First page alpha information.")
+        pdf.new_page().insert_text((72, 72), "Second page beta information.")
+        pdf.save(path)
+    document = PdfLoader().load(path)
+    chunker = DocumentChunker({"retrieval": {"splitter": {
+        "provider": "recursive", "chunk_size": 35, "chunk_overlap": 0,
+    }}})
+
+    chunks = chunker.split_document(document)
+
+    assert {chunk.metadata["page"] for chunk in chunks} == {1, 2}
+    assert all(chunk.metadata["page"] <= chunk.metadata["page_end"] for chunk in chunks)
+
+
+@pytest.mark.integration
 def test_pipeline_skips_successfully_ingested_file_on_second_run(tmp_path: Path) -> None:
     pdf_path = tmp_path / "simple.pdf"
     _write_text_pdf(pdf_path, "Repeat ingestion should be skipped.")
@@ -164,6 +186,23 @@ def test_pipeline_skips_successfully_ingested_file_on_second_run(tmp_path: Path)
     assert second.skipped is True
     assert second.file_hash == first.file_hash
     assert second.chunks == []
+
+
+@pytest.mark.integration
+def test_pipeline_preserves_bm25_results_across_files(tmp_path: Path) -> None:
+    first = tmp_path / "first.pdf"
+    second = tmp_path / "second.pdf"
+    _write_text_pdf(first, "alpha unique term")
+    _write_text_pdf(second, "beta different term")
+    pipeline, _ = _pipeline(tmp_path)
+
+    pipeline.run(first, collection="docs")
+    pipeline.run(second, collection="docs")
+
+    index = BM25Indexer(tmp_path / "db" / "bm25").load()
+    assert index.doc_count >= 2
+    assert index.query("alpha", top_k=5)
+    assert index.query("beta", top_k=5)
 
 
 @pytest.mark.integration

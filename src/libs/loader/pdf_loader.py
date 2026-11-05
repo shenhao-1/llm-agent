@@ -38,12 +38,14 @@ class PdfLoader(BaseLoader):
 
         text_parts: list[str] = []
         images: list[dict[str, Any]] = []
+        page_spans: list[dict[str, int]] = []
         warnings: list[str] = []
 
         with fitz.open(source_path) as pdf:
             for page_index, page in enumerate(pdf):
+                page_start = _joined_text_length(text_parts)
                 page_text = page.get_text("text")
-                if page_text:
+                if page_text and page_text.rstrip():
                     text_parts.append(page_text.rstrip())
 
                 self._append_page_images(
@@ -56,6 +58,11 @@ class PdfLoader(BaseLoader):
                     images=images,
                     warnings=warnings,
                 )
+                page_end = len("\n\n".join(text_parts))
+                if page_end > page_start:
+                    page_spans.append(
+                        {"page": page_index + 1, "start": page_start, "end": page_end}
+                    )
 
             page_count = pdf.page_count
 
@@ -66,6 +73,7 @@ class PdfLoader(BaseLoader):
             "doc_hash": doc_hash,
             "collection": collection,
             "page_count": page_count,
+            "page_spans": page_spans,
             "images": images,
         }
         if warnings:

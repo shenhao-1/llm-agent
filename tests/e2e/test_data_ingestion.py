@@ -66,6 +66,7 @@ def _run_ingest(
     command = [
         sys.executable,
         "scripts/ingest.py",
+        "--offline",
         "--path",
         str(docs_dir),
         "--collection",

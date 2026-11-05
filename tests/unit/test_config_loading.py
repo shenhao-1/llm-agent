@@ -17,6 +17,8 @@ def test_load_settings_success() -> None:
     assert settings.llm["provider"] == "openai"
     assert settings.embedding["provider"] == "openai"
     assert settings.vector_store["provider"] == "chroma"
+    assert settings.ingestion["batch_processor"]["batch_size"] == 32
+    assert settings.to_dict()["ingestion"] == settings.ingestion
 
 
 @pytest.mark.unit

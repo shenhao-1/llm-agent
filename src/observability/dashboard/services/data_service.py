@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from core.settings import load_settings
+from core.runtime import runtime_settings
 from ingestion.document_manager import DocumentDetail, DocumentInfo, DocumentManager
 from ingestion.storage import BM25Indexer, ImageStorage
 from libs.loader import SQLiteIntegrityChecker
@@ -35,7 +36,7 @@ class DataService:
             db_path=data_root / "db" / "image_index.db",
         )
         manager = DocumentManager(
-            chroma_store=ChromaStore(settings.vector_store),
+            chroma_store=ChromaStore(runtime_settings(settings, data_root)["vector_store"]),
             bm25_indexer=bm25,
             image_storage=image_storage,
             file_integrity=SQLiteIntegrityChecker(

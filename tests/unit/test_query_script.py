@@ -41,6 +41,7 @@ def test_query_cli_outputs_top_results(tmp_path: Path, capsys) -> None:
 
     code = main(
         [
+            "--offline",
             "--query",
             "Azure configuration",
             "--top-k",
@@ -69,6 +70,7 @@ def test_query_cli_filters_by_collection(tmp_path: Path, capsys) -> None:
 
     code = main(
         [
+            "--offline",
             "--query",
             "shared query",
             "--collection",
@@ -93,6 +95,7 @@ def test_query_cli_verbose_prints_trace_without_rerank(tmp_path: Path, capsys) -
 
     code = main(
         [
+            "--offline",
             "--query",
             "traceable hybrid",
             "--data-dir",
@@ -110,7 +113,7 @@ def test_query_cli_verbose_prints_trace_without_rerank(tmp_path: Path, capsys) -
 
 
 def test_query_cli_reports_missing_index(tmp_path: Path, capsys) -> None:
-    code = main(["--query", "missing data", "--data-dir", str(tmp_path)])
+    code = main(["--offline", "--query", "missing data", "--data-dir", str(tmp_path)])
 
     output = capsys.readouterr()
     assert code == 1

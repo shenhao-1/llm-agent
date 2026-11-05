@@ -133,12 +133,12 @@ python -m pip install -e ".[dev]"
 $env:OPENAI_API_KEY="sk-your-key"
 ```
 
-当前离线 ingest / query 脚本内置了本地 deterministic embedding 路径，用于测试和演示；如果你启用真实 OpenAI / Azure / Ollama provider，请确保 `settings.yaml` 中对应字段完整。
+默认的 ingest、query、MCP 和 Dashboard 摄取链路使用 `settings.yaml` 指定的 Embedding provider 与 Chroma 数据库。只有明确传入 `--offline` 时，命令行才使用本地三维演示向量和 `vectors.json`；MCP 工具也可用 `offline: true` 读取该演示索引。两种模式共用指定数据目录下的 BM25 索引与摄取历史，因此请通过不同的 `--data-dir` 隔离，例如正式数据使用 `data`、离线演示使用 `data/offline`。生产链路需要先配置对应 provider 的凭据。
 
 ### 4. 首次摄取文档
 
 ```powershell
-python scripts\ingest.py --path tests\fixtures\sample_documents --collection test
+python scripts\ingest.py --path "D:\your-documents\example.pdf" --collection test
 ```
 
 常用参数：
@@ -147,11 +147,12 @@ python scripts\ingest.py --path tests\fixtures\sample_documents --collection tes
 - `--collection`：写入的集合名，后续 query / Dashboard 可按 collection 过滤。
 - `--force`：忽略文件完整性记录，强制重建索引。
 - `--data-dir`：数据目录，默认 `data`。
+- `--offline`：启用演示向量与 JSON 存储；建议同时设置 `--data-dir data/offline`。
 
 摄取后会生成：
 
 - `data/db/bm25/index.json`：BM25 稀疏索引。
-- `data/db/vectors.json` 或 Chroma 持久化目录：向量检索数据。
+- `data/db/chroma/`：默认的 Chroma 向量检索数据；仅 `--offline` 模式写入 `data/db/vectors.json`。
 - `data/db/ingestion_history.db`：文件完整性和幂等记录。
 - `data/images/` 与 `data/db/image_index.db`：PDF 图片文件与索引。
 
@@ -169,6 +170,9 @@ python scripts\query.py --query "测试查询" --collection test --verbose
 - `--no-rerank`：跳过 rerank，便于定位召回问题。
 - `--verbose`：打印 query trace 阶段信息。
 
+`retrieval.strategy` 支持 `hybrid`（默认）、`dense` 和 `sparse`；纯稀疏模式查询时不需要初始化 Embedding provider。无论选择哪种查询模式，摄取仍会生成向量与 BM25 两份索引。
+可在 `retrieval.rrf` 下设置 `k`、`dense_weight`、`sparse_weight`，在 `retrieval.query_processor` 下配置关键词处理参数。启用 `ingestion.image_captioner.enabled` 时，需要配置可用的 `vision_llm` provider（当前内置 Azure Vision）。
+
 ### 6. 启动 Dashboard
 
 ```powershell
@@ -184,6 +188,7 @@ python scripts\evaluate.py --test-set tests\fixtures\golden_test_set.json --json
 ```
 
 评估会读取 golden test set，跑 retrieval，并输出 `hit_rate`、`mrr`、`recall_at_k` 等指标。
+仓库自带的 `golden_test_set.json` 是单元/E2E 回归使用的合成样例 ID；评估自己的 PDF 前，请先按实际入库的向量 ID 与来源路径制作测试集，否则分数没有业务意义。
 
 ### 可选：一键配置（Setup Skill）
 
@@ -215,6 +220,7 @@ Agent 会自动引导你完成全部配置流程。
 | `evaluation` | 评估后端配置 | `provider` 或 `backends`、`prefix_metrics` |
 | `observability` | 日志与 trace 配置 | `level`、`traces_path` |
 | `ingestion` | 摄取阶段开关和批处理配置 | `chunk_refiner`、`metadata_enricher`、`image_captioner`、`batch_processor` |
+| `vision_llm` | 可选的独立图片描述模型 | `provider`、`model`、Azure 连接参数；启用图片描述时配置 |
 
 最小可运行配置示例：
 
@@ -636,7 +642,7 @@ python -m pip install -e ".[dev]" --default-timeout 120
 2. 检查 MCP 配置里的 `cwd` 是否指向项目根目录。
 3. 检查 `PYTHONPATH` 是否包含 `项目根目录/src`。
 4. 先跑 `python -m pytest -q tests\e2e\test_mcp_client.py`，确认 stdio JSON-RPC 链路可用。
-5. 如果 `query_knowledge_hub` 返回无结果，先执行 ingest，确认 `data/db/bm25/index.json` 和 `data/db/vectors.json` 存在。
+5. 如果 `query_knowledge_hub` 返回无结果，先执行 ingest，确认 `data/db/bm25/index.json` 和 `data/db/chroma/` 存在。旧的离线 `vectors.json` 不会自动迁移到 Chroma；需要使用默认模式重新摄取原 PDF。
 
 ### 1. 如何切换 Provider（比如换成 Qwen / DeepSeek / Ollama）？
 

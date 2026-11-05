@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from ingestion.storage import BM25Indexer
 
 from mcp_server.protocol_handler import ToolDefinition
 
@@ -14,17 +15,35 @@ DEFAULT_DOCUMENTS_DIR = Path("data/documents")
 def list_collections(documents_dir: str | Path = DEFAULT_DOCUMENTS_DIR) -> dict[str, Any]:
     """Return collections discovered under data/documents/{collection}/."""
     root = Path(documents_dir)
-    if not root.exists():
-        return _result([], root)
-    if not root.is_dir():
+    if root.exists() and not root.is_dir():
         raise ValueError(f"documents_dir must be a directory: {root}")
 
-    collections = [
-        _collection_info(collection_dir)
-        for collection_dir in sorted(root.iterdir(), key=lambda path: path.name)
-        if collection_dir.is_dir()
-    ]
-    return _result(collections, root)
+    collections_by_name: dict[str, dict[str, Any]] = {}
+    if root.exists():
+        for collection_dir in sorted(root.iterdir(), key=lambda path: path.name):
+            if collection_dir.is_dir():
+                info = _collection_info(collection_dir)
+                collections_by_name[info["name"]] = info
+    index = BM25Indexer(root.parent / "db" / "bm25")
+    if index.index_path.exists():
+        index.load()
+        counts: dict[str, set[str]] = {}
+        for record in index.documents.values():
+            name = str(record.metadata.get("collection", "default"))
+            source = str(record.metadata.get("source_path", ""))
+            counts.setdefault(name, set()).add(source)
+        for name, sources in counts.items():
+            collections_by_name[name] = {
+                "name": name,
+                "path": str(index.index_path),
+                "document_count": len(sources),
+                "total_bytes": sum(
+                    Path(source).stat().st_size
+                    for source in sources
+                    if Path(source).is_file()
+                ),
+            }
+    return _result([collections_by_name[name] for name in sorted(collections_by_name)], root)
 
 
 def handle_list_collections(arguments: dict[str, Any]) -> dict[str, Any]:

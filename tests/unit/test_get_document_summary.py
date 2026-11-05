@@ -39,7 +39,7 @@ def test_get_document_summary_returns_structured_metadata(tmp_path: Path) -> Non
         ],
     )
 
-    result = get_document_summary("doc-123", data_dir=tmp_path)
+    result = get_document_summary("doc-123", data_dir=tmp_path, offline=True)
 
     structured = result["structuredContent"]
     assert structured["doc_id"] == "doc-123"
@@ -57,8 +57,8 @@ def test_get_document_summary_can_match_source_path_or_stem(tmp_path: Path) -> N
         [_record("vec-1", doc_hash="hash", source_path="docs/manual.pdf")],
     )
 
-    by_path = get_document_summary("docs/manual.pdf", data_dir=tmp_path)
-    by_stem = get_document_summary("manual", data_dir=tmp_path)
+    by_path = get_document_summary("docs/manual.pdf", data_dir=tmp_path, offline=True)
+    by_stem = get_document_summary("manual", data_dir=tmp_path, offline=True)
 
     assert by_path["structuredContent"]["doc_id"] == "hash"
     assert by_stem["structuredContent"]["doc_id"] == "hash"
@@ -68,14 +68,14 @@ def test_get_document_summary_missing_doc_raises_not_found(tmp_path: Path) -> No
     _write_vectors(tmp_path, [_record("vec-1", doc_hash="known")])
 
     with pytest.raises(DocumentSummaryNotFound, match="Document not found"):
-        get_document_summary("missing", data_dir=tmp_path)
+        get_document_summary("missing", data_dir=tmp_path, offline=True)
 
 
 def test_handle_get_document_summary_maps_not_found_to_json_rpc_error(tmp_path: Path) -> None:
     _write_vectors(tmp_path, [])
 
     with pytest.raises(JsonRpcError) as exc:
-        handle_get_document_summary({"doc_id": "missing", "data_dir": str(tmp_path)})
+        handle_get_document_summary({"doc_id": "missing", "data_dir": str(tmp_path), "offline": True})
 
     assert exc.value.code == INVALID_PARAMS
     assert exc.value.message == "Document not found: missing"

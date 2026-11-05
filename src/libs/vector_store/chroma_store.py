@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from importlib import import_module
+import json
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -44,7 +45,7 @@ class ChromaStore(BaseVectorStore):
             embeddings.append([float(value) for value in record["vector"]])
             documents.append(str(record.get("text", "")))
             metadata = record.get("metadata")
-            metadatas.append(dict(metadata) if isinstance(metadata, Mapping) else {})
+            metadatas.append(_encode_metadata(metadata) if isinstance(metadata, Mapping) else {})
 
         self._collection.upsert(
             ids=ids,
@@ -80,7 +81,7 @@ class ChromaStore(BaseVectorStore):
             if index < len(documents):
                 item["text"] = documents[index]
             if index < len(metadatas) and isinstance(metadatas[index], Mapping):
-                item["metadata"] = dict(metadatas[index])
+                item["metadata"] = _decode_metadata(metadatas[index])
             if index < len(distances):
                 item["distance"] = float(distances[index])
             items.append(item)
@@ -105,7 +106,7 @@ class ChromaStore(BaseVectorStore):
             if index < len(documents):
                 record["text"] = documents[index]
             if index < len(metadatas) and isinstance(metadatas[index], Mapping):
-                record["metadata"] = dict(metadatas[index])
+                record["metadata"] = _decode_metadata(metadatas[index])
             records_by_id[str(item_id)] = record
 
         return [records_by_id[item_id] for item_id in ids if item_id in records_by_id]
@@ -136,7 +137,7 @@ class ChromaStore(BaseVectorStore):
             if index < len(documents):
                 record["text"] = documents[index]
             if index < len(metadatas) and isinstance(metadatas[index], Mapping):
-                record["metadata"] = dict(metadatas[index])
+                record["metadata"] = _decode_metadata(metadatas[index])
             records.append(record)
         return records
 
@@ -187,6 +188,31 @@ def _metadata_where(filters: Mapping[str, Any] | None) -> dict[str, Any] | None:
     if len(items) == 1:
         return items[0]
     return {"$and": items}
+
+
+_JSON_PREFIX = "__rag_json__:"
+
+
+def _encode_metadata(metadata: Mapping[str, Any]) -> dict[str, str | int | float | bool]:
+    encoded: dict[str, str | int | float | bool] = {}
+    for key, value in metadata.items():
+        if value is None:
+            continue
+        if isinstance(value, (str, int, float, bool)) and not (
+            isinstance(value, str) and value.startswith(_JSON_PREFIX)
+        ):
+            encoded[str(key)] = value
+        else:
+            encoded[str(key)] = _JSON_PREFIX + json.dumps(value, ensure_ascii=False)
+    return encoded
+
+
+def _decode_metadata(metadata: Mapping[str, Any]) -> dict[str, Any]:
+    decoded = dict(metadata)
+    for key, value in decoded.items():
+        if isinstance(value, str) and value.startswith(_JSON_PREFIX):
+            decoded[key] = json.loads(value[len(_JSON_PREFIX):])
+    return decoded
 
 
 __all__ = ["ChromaStore"]

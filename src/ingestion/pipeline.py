@@ -8,7 +8,7 @@ from typing import Any, Callable, Mapping, Protocol, TYPE_CHECKING
 
 from core.types import Chunk, ChunkRecord, Document
 from ingestion.chunking import DocumentChunker
-from ingestion.embedding import BatchProcessingResult, BatchProcessor
+from ingestion.embedding import BatchProcessingResult, BatchProcessor, SparseEncodingResult
 from ingestion.storage import BM25Indexer, ImageRecord, ImageStorage, VectorUpserter
 from ingestion.transform import ChunkRefiner, ImageCaptioner, MetadataEnricher
 from libs.loader import PdfLoader, SQLiteIntegrityChecker
@@ -128,7 +128,20 @@ class IngestionPipeline:
         try:
             current_stage = "integrity"
             file_hash = self.integrity_checker.compute_sha256(path)
-            if not force and self.integrity_checker.should_skip(file_hash):
+            store = self.vector_upserter.vector_store
+            backend_id = f"{type(store).__module__}.{type(store).__qualname__}"
+            previous = getattr(self.integrity_checker, "get_record", None)
+            record = previous(file_hash) if callable(previous) else None
+            same_target = (
+                record is None
+                or (
+                    record.get("file_path") == str(path)
+                    and isinstance(record.get("metadata"), Mapping)
+                    and record["metadata"].get("collection") == collection
+                    and record["metadata"].get("vector_backend") == backend_id
+                )
+            )
+            if not force and same_target and self.integrity_checker.should_skip(file_hash):
                 result = IngestionResult(
                     file_hash=file_hash,
                     source_path=str(path),
@@ -190,7 +203,13 @@ class IngestionPipeline:
             self._progress(progress, "encode")
 
             current_stage = "store_bm25"
-            self.bm25_indexer.build(batch_result.sparse_result)
+            sparse_result = self._sparse_with_vector_ids(batch_result)
+            # Preserve chunks from earlier files in the same index. Replacing a
+            # source first also handles --force and changed file contents.
+            if self.bm25_indexer.index_path.exists() and not self.bm25_indexer.documents:
+                self.bm25_indexer.load()
+            self.bm25_indexer.remove_document(str(path), collection, persist=False)
+            self.bm25_indexer.update(sparse_result)
             bm25_path = self.bm25_indexer.index_path
             self._record_stage(
                 trace,
@@ -201,6 +220,12 @@ class IngestionPipeline:
             self._progress(progress, "store_bm25")
 
             current_stage = "store_vectors"
+            # Remove superseded chunk IDs when the same source is re-ingested.
+            delete_by_metadata = getattr(
+                self.vector_upserter.vector_store, "delete_by_metadata", None
+            )
+            if callable(delete_by_metadata):
+                delete_by_metadata({"source_path": str(path), "collection": collection})
             vector_result = self.vector_upserter.upsert(
                 batch_result.dense_records, trace=trace
             )
@@ -241,6 +266,7 @@ class IngestionPipeline:
                     "collection": collection,
                     "chunk_count": result.chunk_count,
                     "image_count": len(image_records),
+                    "vector_backend": backend_id,
                 },
             )
             return result
@@ -277,6 +303,30 @@ class IngestionPipeline:
             method=_component_name(loader),
         )
         return document
+
+    def _sparse_with_vector_ids(
+        self, batch_result: BatchProcessingResult
+    ) -> SparseEncodingResult:
+        """Give both retrieval routes the same IDs for the same chunks."""
+        stable_id = getattr(self.vector_upserter, "stable_id", None)
+        if not callable(stable_id):
+            return batch_result.sparse_result
+        vector_ids = {record.id: stable_id(record) for record in batch_result.dense_records}
+        records = [
+            ChunkRecord(
+                id=vector_ids[record.id],
+                text=record.text,
+                metadata={**record.metadata, "source_chunk_id": record.id},
+                sparse_vector=record.sparse_vector,
+            )
+            for record in batch_result.sparse_result.records
+        ]
+        stats = dict(batch_result.sparse_result.corpus_stats)
+        stats["doc_lengths"] = {
+            vector_ids[chunk_id]: length
+            for chunk_id, length in stats.get("doc_lengths", {}).items()
+        }
+        return SparseEncodingResult(records=records, corpus_stats=stats)
 
     def _run_transforms(
         self,
@@ -358,6 +408,8 @@ def _settings_with_defaults(settings: "Settings | Mapping[str, Any]") -> dict[st
             "rerank": dict(getattr(settings, "rerank")),
             "evaluation": dict(getattr(settings, "evaluation")),
             "observability": dict(getattr(settings, "observability")),
+            "ingestion": dict(getattr(settings, "ingestion", {})),
+            "vision_llm": dict(getattr(settings, "vision_llm", {})),
         }
     else:
         merged = dict(settings)

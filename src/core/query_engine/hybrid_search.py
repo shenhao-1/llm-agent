@@ -28,19 +28,31 @@ class HybridSearch:
         sparse_retriever: SparseRetriever | None = None,
         fusion: RRFFusion | None = None,
     ) -> None:
-        if settings is None and (
-            query_processor is None
-            or dense_retriever is None
-            or sparse_retriever is None
-        ):
+        if settings is None and query_processor is None:
             raise ValueError(
                 "settings are required unless query_processor, dense_retriever, and sparse_retriever are provided"
             )
 
         self.settings = settings or {}
+        retrieval = getattr(self.settings, "retrieval", None)
+        if retrieval is None and isinstance(self.settings, Mapping):
+            retrieval = self.settings.get("retrieval", {})
+        retrieval = retrieval if isinstance(retrieval, Mapping) else {}
+        self.strategy = str(retrieval.get("strategy", "hybrid")).lower()
+        if self.strategy not in {"hybrid", "dense", "sparse"}:
+            raise ValueError("retrieval.strategy must be hybrid, dense, or sparse")
+        if settings is None and (
+            (self.strategy != "sparse" and dense_retriever is None)
+            or (self.strategy != "dense" and sparse_retriever is None)
+        ):
+            raise ValueError("active retrieval routes must be provided when settings are absent")
         self.query_processor = query_processor or QueryProcessor()
-        self.dense_retriever = dense_retriever or DenseRetriever(self.settings)
-        self.sparse_retriever = sparse_retriever or SparseRetriever(self.settings)
+        self.dense_retriever = dense_retriever or (
+            DenseRetriever(self.settings) if self.strategy != "sparse" else None
+        )
+        self.sparse_retriever = sparse_retriever or (
+            SparseRetriever(self.settings) if self.strategy != "dense" else None
+        )
         self.fusion = fusion or RRFFusion()
 
     def search(
@@ -66,11 +78,10 @@ class HybridSearch:
             trace=trace,
         )
 
-        fused = self.fusion.fuse(
-            dense_results,
-            sparse_results,
-            top_k=None,
-            trace=trace,
+        fused = (
+            self.fusion.fuse(dense_results, sparse_results, top_k=None, trace=trace)
+            if self.strategy == "hybrid"
+            else dense_results or sparse_results
         )
         filtered = self._apply_metadata_filters(fused, processed.filters)
         results = filtered[:top_k]
@@ -81,6 +92,7 @@ class HybridSearch:
                 method="hybrid_search",
                 details={
                     "top_k": top_k,
+                    "strategy": self.strategy,
                     "keyword_count": len(processed.keywords),
                     "dense_count": len(dense_results),
                     "sparse_count": len(sparse_results),
@@ -101,6 +113,13 @@ class HybridSearch:
         filters: dict[str, Any],
         trace: "TraceContext | None",
     ) -> tuple[list[RetrievalResult], list[RetrievalResult], dict[str, str]]:
+        if self.strategy == "dense":
+            assert self.dense_retriever is not None
+            return self.dense_retriever.retrieve(query, top_k, filters, trace), [], {}
+        if self.strategy == "sparse":
+            assert self.sparse_retriever is not None
+            return [], self.sparse_retriever.retrieve(keywords, top_k, trace), {}
+        assert self.dense_retriever is not None and self.sparse_retriever is not None
         errors: dict[str, str] = {}
         with ThreadPoolExecutor(max_workers=2) as executor:
             dense_future = executor.submit(

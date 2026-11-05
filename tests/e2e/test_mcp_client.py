@@ -73,6 +73,7 @@ def test_mcp_client_lists_tools_and_calls_query_knowledge_hub(tmp_path: Path) ->
                     "collection": "docs",
                     "settings_path": str(settings_path),
                     "data_dir": str(data_dir),
+                    "offline": True,
                 },
             },
         },

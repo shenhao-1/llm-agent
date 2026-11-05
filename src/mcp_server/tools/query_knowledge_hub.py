@@ -15,6 +15,7 @@ from core.query_engine import (
     RRFFusion,
     SparseRetriever,
 )
+from core.runtime import build_search as build_configured_search
 from core.response import ResponseBuilder
 from core.settings import load_settings
 from core.trace import TraceContext
@@ -40,6 +41,7 @@ def query_knowledge_hub(
     response_builder: ResponseBuilder | None = None,
     settings_path: str | Path = DEFAULT_SETTINGS,
     data_dir: str | Path = DEFAULT_DATA_DIR,
+    offline: bool = False,
     trace: TraceContext | None = None,
     trace_log_path: str | Path | None = DEFAULT_TRACE_LOG_PATH,
 ) -> dict[str, Any]:
@@ -53,7 +55,7 @@ def query_knowledge_hub(
     error: str | None = None
 
     try:
-        searcher = search or _build_default_search(settings_path, data_dir)
+        searcher = search or _build_default_search(settings_path, data_dir, offline=offline)
         filters = {"collection": collection} if collection else None
         results = searcher.search(query, top_k=top_k, filters=filters, trace=current_trace)
         ranker = reranker
@@ -98,12 +100,14 @@ def handle_query_knowledge_hub(arguments: dict[str, Any]) -> dict[str, Any]:
     collection = arguments.get("collection")
     data_dir = arguments.get("data_dir", DEFAULT_DATA_DIR)
     settings_path = arguments.get("settings_path", DEFAULT_SETTINGS)
+    offline = arguments.get("offline", False)
     return query_knowledge_hub(
         query=query,
         top_k=top_k,
         collection=collection,
         settings_path=settings_path,
         data_dir=data_dir,
+        offline=offline,
     )
 
 
@@ -128,6 +132,7 @@ def tool_definition() -> ToolDefinition:
                     "type": "string",
                     "description": "Optional collection metadata filter.",
                 },
+                "offline": {"type": "boolean", "default": False, "description": "Read the legacy JSON demo index."},
             },
             "required": ["query"],
             "additionalProperties": False,
@@ -223,8 +228,12 @@ class ReadOnlyJsonVectorStore(BaseVectorStore):
 def _build_default_search(
     settings_path: str | Path,
     data_dir: str | Path,
+    *,
+    offline: bool = False,
 ) -> HybridSearch:
     settings = load_settings(settings_path)
+    if not offline:
+        return build_configured_search(settings, data_dir)
     db_dir = Path(data_dir) / "db"
     vector_store = ReadOnlyJsonVectorStore(db_dir / "vectors.json")
     bm25_indexer = BM25Indexer(db_dir / "bm25").load()

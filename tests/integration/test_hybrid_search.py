@@ -152,6 +152,23 @@ class PassthroughRerankerBackend(BaseReranker):
         return [dict(candidate) for candidate in candidates]
 
 
+@pytest.mark.parametrize("strategy", ["dense", "sparse"])
+def test_single_route_strategy_uses_only_selected_retriever(strategy: str) -> None:
+    dense = FakeDenseRetriever([_result("dense-hit", "dense text", {"collection": "docs"})])
+    sparse = FakeSparseRetriever([_result("sparse-hit", "sparse text", {"collection": "docs"})])
+    search = HybridSearch(
+        settings={"retrieval": {"strategy": strategy}},
+        dense_retriever=dense,
+        sparse_retriever=sparse,
+    )
+
+    results = search.search("alpha", top_k=1)
+
+    assert [item.chunk_id for item in results] == [f"{strategy}-hit"]
+    assert len(dense.calls) == (1 if strategy == "dense" else 0)
+    assert len(sparse.calls) == (1 if strategy == "sparse" else 0)
+
+
 def test_hybrid_search_returns_fused_top_k_with_text_and_metadata() -> None:
     dense = FakeDenseRetriever(
         [

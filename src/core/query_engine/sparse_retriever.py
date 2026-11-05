@@ -58,7 +58,10 @@ class SparseRetriever:
         results: list[RetrievalResult] = []
         for hit in bm25_hits:
             chunk_id = str(hit["chunk_id"])
-            record = records_by_id.get(chunk_id, {})
+            record = records_by_id.get(chunk_id)
+            if record is None:
+                # A stale BM25 posting must not become an empty-text search hit.
+                continue
             metadata = self._metadata_from(record, hit)
             text = record.get("text", "")
             if not isinstance(text, str):

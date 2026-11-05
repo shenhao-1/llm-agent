@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 import json
 from typing import Any, Mapping
@@ -23,6 +23,17 @@ class Settings:
     rerank: dict[str, Any]
     evaluation: dict[str, Any]
     observability: dict[str, Any]
+    ingestion: dict[str, Any] = field(default_factory=dict)
+    vision_llm: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, dict[str, Any]]:
+        return {
+            section: dict(getattr(self, section))
+            for section in (
+                "llm", "embedding", "vector_store", "retrieval", "rerank",
+                "evaluation", "observability", "ingestion", "vision_llm",
+            )
+        }
 
 
 def load_settings(path: str | Path) -> Settings:
@@ -42,6 +53,8 @@ def load_settings(path: str | Path) -> Settings:
         rerank=_as_dict(payload.get("rerank"), "rerank"),
         evaluation=_as_dict(payload.get("evaluation"), "evaluation"),
         observability=_as_dict(payload.get("observability"), "observability"),
+        ingestion=_as_dict(payload.get("ingestion", {}), "ingestion"),
+        vision_llm=_as_dict(payload.get("vision_llm", {}), "vision_llm"),
     )
     validate_settings(settings)
     return settings

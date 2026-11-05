@@ -75,6 +75,17 @@ def test_chroma_store_upsert_and_query_roundtrip(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
+def test_chroma_store_preserves_nested_image_metadata(tmp_path: Path) -> None:
+    store = ChromaStore({"persist_directory": str(tmp_path / "chroma")})
+    images = [{"id": "figure-1", "path": "images/figure.png"}]
+    store.upsert([{"id": "chunk", "text": "figure", "vector": [1.0, 0.0],
+                   "metadata": {"collection": "docs", "images": images, "tags": ["diagram"]}}])
+
+    assert store.get_by_ids(["chunk"])[0]["metadata"]["images"] == images
+    assert store.query([1.0, 0.0], 1)[0]["metadata"]["tags"] == ["diagram"]
+
+
+@pytest.mark.integration
 def test_chroma_store_respects_top_k(tmp_path: Path) -> None:
     store = ChromaStore(
         {

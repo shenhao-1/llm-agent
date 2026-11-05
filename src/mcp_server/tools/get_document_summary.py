@@ -5,6 +5,9 @@ from __future__ import annotations
 from pathlib import Path
 import json
 from typing import Any, Mapping
+from core.runtime import runtime_settings
+from core.settings import load_settings
+from libs.vector_store import VectorStoreFactory
 
 from mcp_server.protocol_handler import INVALID_PARAMS, JsonRpcError, ToolDefinition
 
@@ -20,12 +23,19 @@ def get_document_summary(
     doc_id: str,
     *,
     data_dir: str | Path = DEFAULT_DATA_DIR,
+    offline: bool = False,
+    settings_path: str | Path = "config/settings.yaml",
 ) -> dict[str, Any]:
     """Return title, summary, and tags for a document from vector metadata."""
     if not isinstance(doc_id, str) or not doc_id.strip():
         raise ValueError("doc_id must be a non-empty string")
 
-    records = _load_vector_records(Path(data_dir) / "db" / "vectors.json")
+    if offline:
+        records = _load_vector_records(Path(data_dir) / "db" / "vectors.json")
+    else:
+        settings = runtime_settings(load_settings(settings_path), data_dir)
+        store = VectorStoreFactory.create(settings)
+        records = store.get_by_metadata()
     matching = [
         record
         for record in records
@@ -48,6 +58,8 @@ def handle_get_document_summary(arguments: dict[str, Any]) -> dict[str, Any]:
         return get_document_summary(
             doc_id=arguments.get("doc_id"),
             data_dir=arguments.get("data_dir", DEFAULT_DATA_DIR),
+            offline=arguments.get("offline", False),
+            settings_path=arguments.get("settings_path", "config/settings.yaml"),
         )
     except DocumentSummaryNotFound as exc:
         raise JsonRpcError(INVALID_PARAMS, str(exc)) from exc
@@ -63,7 +75,12 @@ def tool_definition() -> ToolDefinition:
                 "doc_id": {
                     "type": "string",
                     "description": "Document hash, source path, or source filename stem.",
-                }
+                },
+                "offline": {
+                    "type": "boolean",
+                    "default": False,
+                    "description": "Read the legacy JSON demo index.",
+                },
             },
             "required": ["doc_id"],
             "additionalProperties": False,

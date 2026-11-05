@@ -41,6 +41,10 @@ def test_tokenization_normalizes_case_and_punctuation() -> None:
     assert tokens == ["hybrid", "search", "hybrid_search", "v2"]
 
 
+def test_chinese_text_uses_same_bigrams_as_query() -> None:
+    assert SparseEncoder().tokenize("图像检索") == ["图像", "像检", "检索"]
+
+
 def test_min_token_length_configuration_filters_short_terms() -> None:
     encoder = SparseEncoder({"min_token_length": 3})
 

@@ -13,7 +13,8 @@ if TYPE_CHECKING:
     from core.trace.trace_context import TraceContext
 
 
-TOKEN_RE = re.compile(r"[A-Za-z0-9_]+")
+TOKEN_RE = re.compile(r"[A-Za-z0-9_]+|[\u3400-\u9fff]+")
+HAN_RE = re.compile(r"^[\u3400-\u9fff]+$")
 
     #这个模块实现了一个SparseEncoder类，用于将文本块（Chunk）编码成稀疏的词频向量，并计算语料库级别的统计信息，以便在BM25索引中使用。SparseEncoder的encode方法接受一个Chunk对象的列表，并返回一个SparseEncodingResult对象，其中包含了每个Chunk对应的ChunkRecord（包括稀疏向量）以及整个语料库的统计信息，如文档数量、平均文档长度、词项的文档频率等。SparseEncoder还包含一个tokenize方法，用于将文本分割成规范化的词项列表，过滤掉长度小于min_token_length的词项。
 @dataclass(frozen=True)
@@ -95,11 +96,15 @@ class SparseEncoder:
         """Tokenize text into normalized terms for sparse retrieval."""
         if not isinstance(text, str):
             raise ValueError("text must be a string")
-        return [
-            token.lower()
-            for token in TOKEN_RE.findall(text)
-            if len(token) >= self.min_token_length
-        ]
+        tokens: list[str] = []
+        for token in TOKEN_RE.findall(text):
+            if HAN_RE.fullmatch(token):
+                tokens.extend(token[index:index + 2] for index in range(len(token) - 1))
+                if len(token) == 1:
+                    tokens.append(token)
+            elif len(token) >= self.min_token_length:
+                tokens.append(token.lower())
+        return tokens
 
     @staticmethod
     def _validate_chunks(chunks: Any) -> None:

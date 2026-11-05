@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from core.settings import SettingsValidationError, load_settings  # noqa: E402
+from core.runtime import build_pipeline as build_configured_pipeline  # noqa: E402
 from ingestion import IngestionPipeline, IngestionPipelineError  # noqa: E402
 from ingestion.embedding import BatchProcessor, DenseEncoder, SparseEncoder  # noqa: E402
 from ingestion.storage import (  # noqa: E402
@@ -122,12 +123,13 @@ def main(argv: list[str] | None = None) -> int:
         default="data",
         help="Root directory for ingestion artifacts.",
     )
+    parser.add_argument("--offline", action="store_true", help="Use the legacy JSON demo index and deterministic vectors.")
     args = parser.parse_args(argv)
 
     try:
         settings = load_settings(args.settings)
         sources = _discover_sources(Path(args.path))
-        pipeline = _build_pipeline(settings, Path(args.data_dir))
+        pipeline = _build_pipeline(settings, Path(args.data_dir), offline=args.offline)
     except (OSError, SettingsValidationError, ValueError) as exc:
         print(f"ingest setup failed: {exc}", file=sys.stderr)
         return 2
@@ -173,7 +175,9 @@ def _discover_sources(path: Path) -> list[Path]:
     raise ValueError(f"path does not exist: {path}")
 
 
-def _build_pipeline(settings: Any, data_dir: Path) -> IngestionPipeline:
+def _build_pipeline(settings: Any, data_dir: Path, *, offline: bool = False) -> IngestionPipeline:
+    if not offline:
+        return build_configured_pipeline(settings, data_dir)
     db_dir = data_dir / "db"
     return IngestionPipeline(
         settings,

@@ -90,7 +90,7 @@ def test_query_knowledge_hub_tool_returns_markdown_no_results_response() -> None
         "method": "tools/call",
         "params": {
             "name": "query_knowledge_hub",
-            "arguments": {"query": "missing topic", "top_k": 2},
+            "arguments": {"query": "missing topic", "top_k": 2, "offline": True},
         },
     }
 
@@ -204,7 +204,7 @@ def test_get_document_summary_tool_returns_structured_summary(tmp_path: Path) ->
         "method": "tools/call",
         "params": {
             "name": "get_document_summary",
-            "arguments": {"doc_id": "doc-1", "data_dir": str(tmp_path)},
+            "arguments": {"doc_id": "doc-1", "data_dir": str(tmp_path), "offline": True},
         },
     }
 
@@ -238,7 +238,7 @@ def test_get_document_summary_tool_returns_json_rpc_error_for_missing_doc(tmp_pa
         "method": "tools/call",
         "params": {
             "name": "get_document_summary",
-            "arguments": {"doc_id": "missing", "data_dir": str(tmp_path)},
+            "arguments": {"doc_id": "missing", "data_dir": str(tmp_path), "offline": True},
         },
     }
 
@@ -295,6 +295,7 @@ def test_query_knowledge_hub_tool_returns_image_content(tmp_path: Path) -> None:
                 "query": "architecture diagram",
                 "top_k": 1,
                 "data_dir": str(tmp_path),
+                "offline": True,
             },
         },
     }

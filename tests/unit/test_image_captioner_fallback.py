@@ -85,6 +85,7 @@ def test_enabled_captioner_writes_caption_to_metadata(tmp_path: Path) -> None:
         "img-1": "A small architecture diagram."
     }
     assert result.metadata["images"][0]["caption"] == "A small architecture diagram."
+    assert "A small architecture diagram." in result.text
     assert vision.calls[0][1] == str(image_path)
     assert "Chunk context" in vision.calls[0][0]
     assert "Chunk with [IMAGE: img-1]" in vision.calls[0][0]

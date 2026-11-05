@@ -146,7 +146,14 @@ class ImageCaptioner(BaseTransform): # 继承BaseTransform 同C5 C6一样的组�
         elif image_refs:
             metadata["has_unprocessed_images"] = False
 
-        return self._replace_chunk(chunk, metadata), captioned
+        # Keep the image placeholder, and add searchable text beside it.
+        # Re-running the transform must not append the same caption twice.
+        searchable_text = chunk.text
+        for image_id, caption in captions.items():
+            addition = f"[Image description {image_id}: {caption}]"
+            if addition not in searchable_text:
+                searchable_text += f"\n{addition}"
+        return self._replace_chunk(chunk, metadata, text=searchable_text), captioned
     #该方法负责构建传递给视觉LLM的提示词。它使用块的文本、图像ID和源路径等信息填充预定义的提示模板。如果提示模板中没有{text}占位符，它会将块的文本附加到提示词的末尾，以确保视觉LLM有足够的上下文来生成相关的图像标题。
     def _build_prompt(self, chunk: Chunk, image: Mapping[str, Any]) -> str:
         values = {
@@ -214,10 +221,12 @@ class ImageCaptioner(BaseTransform): # 继承BaseTransform 同C5 C6一样的组�
         return {}
     # 该方法创建一个新的块，保留原始块的ID、文本、偏移和源引用，但使用更新后的元数据。它通过从原始块复制这些字段并替换元数据来实现这一点，从而确保生成的新块与原始块在结构上保持一致，同时包含新的图像标题信息。
     @staticmethod
-    def _replace_chunk(chunk: Chunk, metadata: dict[str, Any]) -> Chunk:
+    def _replace_chunk(
+        chunk: Chunk, metadata: dict[str, Any], *, text: str | None = None
+    ) -> Chunk:
         return Chunk(
             id=chunk.id,
-            text=chunk.text,
+            text=chunk.text if text is None else text,
             metadata=metadata,
             start_offset=chunk.start_offset,
             end_offset=chunk.end_offset,

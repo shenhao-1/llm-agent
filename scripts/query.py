@@ -24,6 +24,7 @@ from core.query_engine import (  # noqa: E402
     SparseRetriever,
 )
 from core.settings import SettingsValidationError, load_settings  # noqa: E402
+from core.runtime import build_search as build_configured_search  # noqa: E402
 from core.trace import TraceContext  # noqa: E402
 from ingestion.storage import BM25Indexer  # noqa: E402
 from libs.embedding import BaseEmbedding  # noqa: E402
@@ -138,12 +139,13 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         settings = load_settings(args.settings)
+        top_k = args.top_k if args.top_k is not None else settings.retrieval["top_k"]
         trace = TraceContext(trace_type="query") if args.verbose else None
         filters = _build_filters(args)
-        search = _build_search(settings, Path(args.data_dir))
+        search = _build_search(settings, Path(args.data_dir), offline=args.offline)
         results = search.search(
             args.query,
-            top_k=args.top_k,
+            top_k=top_k,
             filters=filters,
             trace=trace,
         )
@@ -163,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if trace is not None:
         trace.finish()
-    _print_results(results, top_k=args.top_k)
+    _print_results(results, top_k=top_k)
     if args.verbose and trace is not None:
         _print_trace(trace)
     return 0
@@ -175,8 +177,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--top-k",
         type=int,
-        default=10,
-        help="Number of results to return. Defaults to 10.",
+        default=None,
+        help="Number of results to return. Defaults to retrieval.top_k from settings.",
     )
     parser.add_argument(
         "--collection",
@@ -206,10 +208,16 @@ def _build_parser() -> argparse.ArgumentParser:
         default=str(DEFAULT_DATA_DIR),
         help="Root directory containing db/vectors.json and db/bm25/index.json.",
     )
+    parser.add_argument("--offline", action="store_true", help="Read the legacy JSON demo index.")
     return parser
 
 
-def _build_search(settings: Any, data_dir: Path) -> HybridSearch:
+def _build_search(settings: Any, data_dir: Path, *, offline: bool = False) -> HybridSearch:
+    if not offline:
+        try:
+            return build_configured_search(settings, data_dir)
+        except FileNotFoundError as exc:
+            raise QuerySetupError(str(exc)) from exc
     db_dir = data_dir / "db"
     vector_store = ReadOnlyJsonVectorStore(db_dir / "vectors.json")
     bm25_indexer = _load_bm25_indexer(db_dir / "bm25")

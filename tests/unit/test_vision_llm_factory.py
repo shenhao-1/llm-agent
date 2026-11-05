@@ -45,6 +45,18 @@ def test_register_and_create_vision_provider() -> None:
     assert instance.chat_with_image("describe image", b"raw-image") == "vision-response"
 
 
+def test_vision_provider_has_independent_configuration() -> None:
+    LLMFactory.register_vision_provider("fake-vision", FakeVisionLLM)
+    instance = LLMFactory.create_vision_llm(
+        {
+            "llm": {"provider": "openai", "model": "text-model"},
+            "vision_llm": {"provider": "fake-vision", "model": "vision-model"},
+        }
+    )
+    assert isinstance(instance, FakeVisionLLM)
+    assert instance.config["model"] == "vision-model"
+
+
 @pytest.mark.unit
 def test_create_vision_llm_raises_on_unknown_provider() -> None:
     with pytest.raises(ValueError, match="Unknown vision LLM provider"):

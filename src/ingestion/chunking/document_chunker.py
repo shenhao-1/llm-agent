@@ -49,7 +49,9 @@ class DocumentChunker:
                 Chunk(
                     id=self._generate_chunk_id(document.id, index, chunk_text),
                     text=chunk_text,
-                    metadata=self._inherit_metadata(document, index, chunk_text),
+                    metadata=self._inherit_metadata(
+                        document, index, chunk_text, start_offset, end_offset
+                    ),
                     start_offset=start_offset,
                     end_offset=end_offset,
                     source_ref=document.id,
@@ -73,12 +75,27 @@ class DocumentChunker:
 
     @staticmethod
     def _inherit_metadata(
-        document: Document, chunk_index: int, chunk_text: str
+        document: Document, chunk_index: int, chunk_text: str,
+        start_offset: int = 0, end_offset: int = 0,
     ) -> dict[str, Any]:
         """Copy document metadata and keep only image refs used by the chunk."""
         metadata = deepcopy(document.metadata)
         document_images = metadata.pop("images", [])
+        page_spans = metadata.pop("page_spans", [])
         metadata["chunk_index"] = chunk_index
+        pages = [
+            span["page"]
+            for span in page_spans
+            if isinstance(span, Mapping)
+            and isinstance(span.get("page"), int)
+            and isinstance(span.get("start"), int)
+            and isinstance(span.get("end"), int)
+            and start_offset < span["end"]
+            and end_offset > span["start"]
+        ]
+        if pages:
+            metadata["page"] = pages[0]
+            metadata["page_end"] = pages[-1]
 
         image_refs = IMAGE_PLACEHOLDER_RE.findall(chunk_text)
         if image_refs:
