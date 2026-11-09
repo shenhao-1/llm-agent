@@ -1,0 +1,47 @@
+server:
+  port: ${PORT:8080}
+  address: ${SERVER_ADDRESS:0.0.0.0}
+
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/modular_rag?connectionTimeZone=UTC}
+    username: ${MYSQL_USER:rag}
+    password: ${MYSQL_PASSWORD:rag_dev_password}
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 50MB
+  flyway:
+    enabled: true
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: document-ingestion
+      auto-offset-reset: earliest
+      enable-auto-commit: false
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      properties:
+        max.poll.interval.ms: 600000
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+    listener:
+      ack-mode: record
+
+app:
+  ingestion:
+    topic: document-ingestion-v1
+    python-url: ${PYTHON_INGEST_URL:http://127.0.0.1:8090/internal/ingest}
+    token: ${PYTHON_INGEST_TOKEN:local-dev-token-change-me}
+    max-attempts: 3
+    lease-seconds: 600
+    request-timeout-seconds: 300
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:rag-documents}

@@ -107,6 +107,8 @@
 
 下面是不用任何 Skill、只靠命令行跑通项目的最短路径。Windows PowerShell 示例为主，macOS / Linux 把虚拟环境激活命令换成 `source .venv/bin/activate` 即可。
 
+Java + MySQL + MinIO 文档上传 API 的独立启动步骤见 [java-service/README.md](java-service/README.md)。
+
 ### 1. 克隆并进入项目
 
 ```powershell

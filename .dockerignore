@@ -1,0 +1,10 @@
+.git
+.venv
+data
+logs
+java-service/.m2
+java-service/.tools
+java-service/.local
+java-service/target
+**/__pycache__
+**/.pytest_cache
